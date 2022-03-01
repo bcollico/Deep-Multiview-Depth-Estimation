@@ -1,6 +1,12 @@
 # Ignore Zone.identifier download files
 **/*:Zone.Identifier*
 
+# Ignore Data
+/data
+
+# Ignore Subrepo
+/MVSNet
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
