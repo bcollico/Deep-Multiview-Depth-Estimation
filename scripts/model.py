@@ -1,5 +1,11 @@
+from numpy import extract
 import torch
 import torch.nn as nn
+
+from homography import homography_warping
+from costvolume import assemble_cost_volume
+from depthmap import extract_depth_map
+
 # from torch.autograd import Variable
 # import numpy as np
 # from PIL import Image
@@ -171,6 +177,42 @@ class DepthRefinement(nn.Module):
     def forward(self, depth_and_input):
         """Input is 4-channel: depth map + input image"""
         return self.model(depth_and_input)
+
+
+def MVSNet(nn.module):
+
+    def __init__(self):
+        super(MVSNet, self).__init__()
+
+        self.feature_encoder = FeatureEncoder()
+        self.cost_volume_reg = CostVolumeReg()
+        self.depthmap_refine = DepthRefinement()
+
+        self.parameters = list(self.feature_encoder.parameters()) + 
+                          list(self.cost_volume_reg.parameters()) + 
+                          list(self.depthmap_refine.parameters())
+
+    def forward(self, nn_input, camera):
+
+        # TODO: BE SURE TO USE ONLY TORCH OPERATIONS TO ENSURE DIFFERENTIABILITY
+        
+        feature_maps = self.feature_encoder(nn_input)
+
+        warped_feature_maps = homography_warping(camera, feature_maps)
+
+        cost_volume = assemble_cost_volume(warped_feature_maps)
+
+        prob_volume = self.cost_volume_reg(cost_volume)
+
+        initial_depth_map = extract_depth_map(prob_volume)
+
+        # Don't forget to scale the depth values before refining
+
+        refine_input = torch.cat((initial_depth_map, nn_input[0,:,:,:]),dim=1)
+
+        refined_depth_map = self.depthmap_refine(refine_input)
+
+        return initial_depth_map, refined_depth_map
 
 
 def ConvLayer2D(in_ch, out_ch, stride=1, kernel=3, device=None, 

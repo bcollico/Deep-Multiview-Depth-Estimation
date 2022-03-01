@@ -1,11 +1,13 @@
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 import torch
-import numpy as np  
+
+from cv2 import flip
 from PIL import Image
 from os.path import join
+
+import numpy as np  
 import re
-from cv2 import flip
 
 
 class Cameras():
@@ -176,22 +178,26 @@ class DtuTrainDataset(Dataset):
                     image_two = DTU.Images.file_names[str(light)][pair+1]
 
                     sample = dict()
+                    camera = dict()
                     sample['view_ref']  = self.tensor_transform_img(Image.open(image_ref).convert('RGB'))
                     sample['view_one']  = self.tensor_transform_img(Image.open(image_one).convert('RGB'))
                     sample['view_two']  = self.tensor_transform_img(Image.open(image_two).convert('RGB'))
                     sample['depth_ref'] = self.tensor_transform_depth(DTU.Depths.img[ref])
                     
-                    sample['Kref']      = DTU.Cameras.K[ref]
-                    sample['Rref']      = DTU.Cameras.R[ref]
-                    sample['Tref']      = DTU.Cameras.T[ref]
+                    camera['Kref']      = DTU.Cameras.K[ref]
+                    camera['Rref']      = DTU.Cameras.R[ref]
+                    camera['Tref']      = DTU.Cameras.T[ref]
+                    camera['dref']      = DTU.Cameras.d[ref]
 
-                    sample['K1']        = DTU.Cameras.K[pair]
-                    sample['R1']        = DTU.Cameras.R[pair]
-                    sample['T1']        = DTU.Cameras.T[pair]
+                    camera['K1']        = DTU.Cameras.K[pair]
+                    camera['R1']        = DTU.Cameras.R[pair]
+                    camera['T1']        = DTU.Cameras.T[pair]
+                    camera['d1']        = DTU.Cameras.d[pair]
 
-                    sample['K2']        = DTU.Cameras.K[pair+1]
-                    sample['R2']        = DTU.Cameras.R[pair+1]
-                    sample['T2']        = DTU.Cameras.T[pair+1]
+                    camera['K2']        = DTU.Cameras.K[pair+1]
+                    camera['R2']        = DTU.Cameras.R[pair+1]
+                    camera['T2']        = DTU.Cameras.T[pair+1]
+                    camera['d2']        = DTU.Cameras.d[pair+1]
 
                     self.samples.append(sample)
 
