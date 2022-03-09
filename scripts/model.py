@@ -43,29 +43,29 @@ class FeatureEncoder(nn.Module):
         # .conv(3, base_filter * 4, 1, biased=False, relu=False, name='conv2_2'))
         # .conv_bn(kernel, filters, stride, center=True, scale=True, name='conv0_0')
 
-        self.model = nn.sequential(
-            ConvLayer2D(in_ch, base_filt, kernel=3, stride=1, device=device),
+        self.model = nn.Sequential(
+            ConvLayer2D(in_ch, base_filt, kernel=3, stride=1, padding=1, device=device),
             BNLayer(base_filt), ReLULayer(),
 
-            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, device=device),
+            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, padding=1, device=device),
             BNLayer(base_filt), ReLULayer(),
 
-            ConvLayer2D(base_filt, base_filt*2, kernel=5, stride=2, device=device),
-            BNLayer(in_ch), ReLULayer(),
+            ConvLayer2D(base_filt, base_filt*2, kernel=5, stride=2, padding=2, device=device),
+            BNLayer(base_filt*2), ReLULayer(),
 
-            ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, device=device),
-            BNLayer(in_ch), ReLULayer(),
+            ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(base_filt*2), ReLULayer(),
 
-            ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, device=device),
-            BNLayer(in_ch), ReLULayer(),
+            ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(base_filt*2), ReLULayer(),
 
-            ConvLayer2D(base_filt*2, base_filt*4, kernel=5, stride=2, device=device),
-            BNLayer(in_ch), ReLULayer(),
-
-            ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, device=device),
+            ConvLayer2D(base_filt*2, base_filt*4, kernel=5, stride=2, padding=2, device=device),
             BNLayer(base_filt*4), ReLULayer(),
 
-            ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, bias=False, device=device)
+            ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(base_filt*4), ReLULayer(),
+
+            ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, bias=False, device=device)
         )
 
     def forward(self, input):
@@ -108,21 +108,41 @@ class CostVolumeReg(nn.Module):
     # .add(name='3dconv6_1')
     # .conv(3, 1, 1, biased=False, relu=False, name='3dconv6_2')) #8 in channels, 1 out channel, stride 1
 
+        # self.conv_0_0 = ConvLayer3D(in_ch, base_filt*1, kernel=3, stride=1) # input data
+        # self.conv_1_0 = ConvLayer3D(in_ch, base_filt*2, kernel=3, stride=2)
+        # self.conv_2_0 = ConvLayer3D(in_ch, base_filt*4, kernel=3, stride=2)
+        # self.conv_3_0 = ConvLayer3D(in_ch, base_filt*8, kernel=3, stride=2)
 
-        self.conv_0_0 = ConvLayer3D(in_ch, base_filt*1, kernel=3, stride=1) # input data
-        self.conv_1_0 = ConvLayer3D(in_ch, base_filt*2, kernel=3, stride=2)
-        self.conv_2_0 = ConvLayer3D(in_ch, base_filt*4, kernel=3, stride=2)
-        self.conv_3_0 = ConvLayer3D(in_ch, base_filt*8, kernel=3, stride=2)
+        # self.conv_1_1 = ConvLayer3D(base_filt*2, base_filt*2, kernel=3, stride=1) # input conv 1_0
+        # self.conv_2_1 = ConvLayer3D(base_filt*4, base_filt*4, kernel=3, stride=1) # input conv 2_0
+        # self.conv_3_1 = ConvLayer3D(base_filt*8, base_filt*8, kernel=3, stride=1) # input conv 3_0
 
-        self.conv_1_1 = ConvLayer3D(base_filt*2, base_filt*2, kernel=3, stride=1) # input conv 1_0
-        self.conv_2_1 = ConvLayer3D(base_filt*4, base_filt*4, kernel=3, stride=1) # input conv 2_0
-        self.conv_3_1 = ConvLayer3D(base_filt*8, base_filt*8, kernel=3, stride=1) # input conv 3_0
+        # self.deconv_3_0 = DeConvLayer3D(base_filt*8, base_filt*4, kernel=3, stride=2) # input conv 3_0
+        # self.deconv_2_0 = DeConvLayer3D(base_filt*4, base_filt*2, kernel=3, stride=2) # input deconv 3_0, conv 2_1
+        # self.deconv_1_0 = DeConvLayer3D(base_filt*2, base_filt*1, kernel=3, stride=2) # input deconv 2_0, conv 1_1
 
-        self.deconv_3_0 = DeConvLayer3D(base_filt*8, base_filt*4, kernel=3, stride=2) # input conv 3_0
-        self.deconv_2_0 = DeConvLayer3D(base_filt*4, base_filt*2, kernel=3, stride=2) # input deconv 3_0, conv 2_1
-        self.deconv_1_0 = DeConvLayer3D(base_filt*2, base_filt*1, kernel=3, stride=2) # input deconv 2_0, conv 1_1
+        # self.conv_out = ConvLayer3D(base_filt*1, 1, kernel=3, stride=1) # input deconv 1_0, conv 0_1
 
-        self.conv_out = ConvLayer3D(base_filt*1, 1, kernel=3, stride=1) # input deconv 1_0, conv 0_1
+        # self.ReLU = ReLULayer()
+        # self.BN_0 = BNLayer(base_filt*1)
+        # self.BN_1 = BNLayer(base_filt*2)
+        # self.BN_2 = BNLayer(base_filt*4)
+        # self.BN_3 = BNLayer(base_filt*8)
+
+        self.conv_0_0 = ConvLayer2D(in_ch, base_filt*1, kernel=3, stride=1, padding=1      , device=device) # input data
+        self.conv_1_0 = ConvLayer2D(in_ch, base_filt*2, kernel=3, stride=2, padding=(65,81), device=device)
+        self.conv_2_0 = ConvLayer2D(in_ch, base_filt*4, kernel=3, stride=2, padding=(65,81), device=device)
+        self.conv_3_0 = ConvLayer2D(in_ch, base_filt*8, kernel=3, stride=2, padding=(65,81), device=device)
+
+        self.conv_1_1 = ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device) # input conv 1_0
+        self.conv_2_1 = ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, device=device) # input conv 2_0
+        self.conv_3_1 = ConvLayer2D(base_filt*8, base_filt*8, kernel=3, stride=1, padding=1, device=device) # input conv 3_0
+
+        self.deconv_3_0 = DeConvLayer2D(base_filt*8, base_filt*4, kernel=3, stride=2, padding=(65,81), output_padding=1, device=device) # input conv 3_1
+        self.deconv_2_0 = DeConvLayer2D(base_filt*4, base_filt*2, kernel=3, stride=2, padding=(65,81), output_padding=1, device=device) # input deconv 3_0, conv 2_1
+        self.deconv_1_0 = DeConvLayer2D(base_filt*2, base_filt*1, kernel=3, stride=2, padding=(65,81), output_padding=1, device=device) # input deconv 2_0, conv 1_1
+
+        self.conv_out = ConvLayer2D(base_filt*1, 1, kernel=3, stride=1, padding=1, device=device) # input deconv 1_0, conv 0_1
 
         self.ReLU = ReLULayer()
         self.BN_0 = BNLayer(base_filt*1)
@@ -132,19 +152,29 @@ class CostVolumeReg(nn.Module):
 
     def forward(self, cv):
         y0 = self.ReLU(self.BN_0(self.conv_0_0(cv))) # in 32, out 8
+        # print("y0: ",y0.size())
         y1 = self.ReLU(self.BN_1(self.conv_1_0(cv))) # in 32, out 16
+        # print("y1: ",y1.size())
         y2 = self.ReLU(self.BN_2(self.conv_2_0(cv))) # in 32, out 32
+        # print("y2: ",y2.size())
         y3 = self.ReLU(self.BN_3(self.conv_3_0(cv))) # in 32, out 64
+        # print("y3: ",y3.size())
 
         y1 = self.ReLU(self.BN_1(self.conv_1_1(y1))) # in 16, out 16
+        # print("y1: ",y1.size())
         y2 = self.ReLU(self.BN_2(self.conv_2_1(y2))) # in 32, out 32
+        # print("y2: ",y2.size())
         y3 = self.ReLU(self.BN_3(self.conv_3_1(y3))) # in 64, out 64
+        # print("y3: ",y3.size())
 
         y3 = self.ReLU(self.BN_2(self.deconv_3_0(y3))) # in 64, out 32
-        y2 = self.ReLU(self.BN_1(self.deconv_2_0(torch.cat((y3, y2))))) # in 32, out 16
-        y1 = self.ReLU(self.BN_0(self.deconv_1_0(torch.cat((y2, y1))))) # in 16, out 8
-
-        y  = self.conv_out(torch.cat((y1, y0))) # in 8, out 1
+        # print("y3: ",y3.size())
+        y2 = self.ReLU(self.BN_1(self.deconv_2_0(torch.add(y3, y2)))) # in 32, out 16
+        # print("y2: ",y2.size())
+        y1 = self.ReLU(self.BN_0(self.deconv_1_0(torch.add(y2, y1)))) # in 16, out 8
+        # print("y1: ",y1.size())
+        y  = self.conv_out(torch.add(y1, y0)) # in 8, out 1
+        # print("y : ",y.size())
 
         return y
 
@@ -160,17 +190,17 @@ class DepthRefinement(nn.Module):
         # .conv(3, 1, 1, relu=False, name='refine_conv3'))
         # .conv_bn(kernel, filters, stride, center=True, scale=True, name='conv0_0')
 
-        self.model = nn.sequential(
-            ConvLayer2D(in_ch, base_filt, kernel=3, stride=1, device=device),
-            BNLayer(base_filt),ReLULayer(),
-
-            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, device=device),
+        self.model = nn.Sequential(
+            ConvLayer2D(in_ch    , base_filt, kernel=3, stride=1, padding=1, device=device),
             BNLayer(base_filt), ReLULayer(),
 
-            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, device=device),
-            BNLayer(in_ch), ReLULayer(),
+            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(base_filt), ReLULayer(),
 
-            ConvLayer2D(base_filt, 1, kernel=3, stride=1, device=device)
+            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(base_filt), ReLULayer(),
+
+            ConvLayer2D(base_filt, 1        , kernel=3, stride=1, padding=1, device=device)
 
         )
 
@@ -179,7 +209,7 @@ class DepthRefinement(nn.Module):
         return self.model(depth_and_input)
 
 
-def MVSNet(nn.module):
+class MVSNet(nn.Module):
 
     def __init__(self):
         super(MVSNet, self).__init__()
@@ -188,17 +218,22 @@ def MVSNet(nn.module):
         self.cost_volume_reg = CostVolumeReg()
         self.depthmap_refine = DepthRefinement()
 
-        self.parameters = list(self.feature_encoder.parameters()) + 
-                          list(self.cost_volume_reg.parameters()) + 
+        self.parameters = list(self.feature_encoder.parameters()) + \
+                          list(self.cost_volume_reg.parameters()) + \
                           list(self.depthmap_refine.parameters())
 
-    def forward(self, nn_input, camera):
+    def forward(self, nn_input, K_batch, R_batch, T_batch, d_batch, batch_size, n_views):
 
         # TODO: BE SURE TO USE ONLY TORCH OPERATIONS TO ENSURE DIFFERENTIABILITY
-        
-        feature_maps = self.feature_encoder(nn_input)
 
-        warped_feature_maps = homography_warping(camera, feature_maps)
+        feature_maps = self.feature_encoder(nn_input) # out: b, 32 , h , w
+
+        print("Batch ##:Feature Network Output Size ", feature_maps.size())
+
+        warped_feature_maps = homography_warping(K_batch, R_batch, T_batch, d_batch, 
+                                                feature_maps, batch_size, n_views)
+
+        raise Exception("Stop Here")
 
         cost_volume = assemble_cost_volume(warped_feature_maps)
 
@@ -219,7 +254,14 @@ def ConvLayer2D(in_ch, out_ch, stride=1, kernel=3, device=None,
                 padding=0, padmode='zeros', bias=True):
 
     return nn.Conv2d(in_ch, out_ch, kernel, stride=stride,
-        padding=padding, padding_mode=padmode, bias=False, device=device),
+        padding=padding, padding_mode=padmode, bias=False, device=device)
+
+def DeConvLayer2D(in_ch, out_ch, stride=1, kernel=3, device=None, 
+                padding=0, output_padding=0, padmode='zeros', bias=True):
+
+    return nn.ConvTranspose2d(in_ch, out_ch, kernel, stride=stride,
+        padding=padding, output_padding=output_padding, padding_mode=padmode, 
+        bias=bias, device=device)
 
 def ConvLayer3D(in_ch, out_ch, stride=1, kernel=3, device=None, 
                 padding=0, padmode='zeros', bias=True):
@@ -228,10 +270,11 @@ def ConvLayer3D(in_ch, out_ch, stride=1, kernel=3, device=None,
         padding=padding, padding_mode=padmode, bias=bias, device=device)
 
 def DeConvLayer3D(in_ch, out_ch, stride=1, kernel=3, device=None, 
-                padding=0, padmode='zeros', bias=True):
+                padding=0, output_padding=0, padmode='zeros', bias=True):
 
     return nn.ConvTranspose3d(in_ch, out_ch, kernel, stride=stride,
-        padding=padding, padding_mode=padmode, bias=bias, device=device)
+        padding=padding, output_padding=output_padding, padding_mode=padmode, 
+        bias=bias, device=device)
     
 def BNLayer(in_ch, eps=1e-05, momentum=0.1, device=None):
 
