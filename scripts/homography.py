@@ -42,8 +42,11 @@ def homography_warping(K_batch, R_batch, T_batch, d_batch,
     H_i = torch.matmul(RK, torch.matmul(Tdiff, RKref))
 
     # Check that first homography is identity
-    print(H_i[0,:,:])
-    assert torch.all(abs(H_i[0,:,:] - I[0,:,:]) < 1e-3)
+    # print(H_i[0,:,:])
+    assert torch.all(abs(H_i[ref_idx,:,:] - I) < 1e-3)
+
+    H_i[ref_idx,:,:] = I
+
 
     return feature_maps
 
