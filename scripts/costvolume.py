@@ -6,8 +6,9 @@ def assemble_cost_volume(warped_feature_maps, n_views):
     feature volume channels or if it is per channel. The implementation here is 
     per channel."""
     b, c, w, h = warped_feature_maps.size()
+    ref_idx    = np.arange(0,b*n_views,n_views)
 
-    N = w * h * b
+    N = w * h * b # number of pixels for averaging
 
     print(N)
 
@@ -25,6 +26,7 @@ def assemble_cost_volume(warped_feature_maps, n_views):
 if __name__ == "__main__":
 
     input = torch.randn(9,32,1000,1000)
+    n_views = 3
 
     var = assemble_cost_volume(input, n_views)
 

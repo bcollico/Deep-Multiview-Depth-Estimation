@@ -93,15 +93,16 @@ def train(epochs,
             K_batch = torch.reshape(batch['K'], (batch_size*n_views, 3, 3)) # b*n, 1, 3, 3
             R_batch = torch.reshape(batch['R'], (batch_size*n_views, 3, 3))
             T_batch = torch.reshape(batch['T'], (batch_size*n_views, 3, 1))
-            d_batch = torch.reshape(batch['d'], (batch_size*n_views, 1, 1))
+            d_min   = batch['d']
+            d_int   = batch['d_int']
 
             print("Batch {:d}:MVS Network Input Image Size ".format(batch_idx), nn_input.size())
             print("Batch {:d}:MVS Network Input K     Size ".format(batch_idx), K_batch.size())
             print("Batch {:d}:MVS Network Input R     Size ".format(batch_idx), R_batch.size())
             print("Batch {:d}:MVS Network Input T     Size ".format(batch_idx), T_batch.size())
-            print("Batch {:d}:MVS Network Input d     Size ".format(batch_idx), d_batch.size())
+            print("Batch {:d}:MVS Network Input d     Size ".format(batch_idx), d_min.size())
 
-            mvs_output = mvsnet_model(nn_input, K_batch, R_batch, T_batch, d_batch, batch_size, n_views)
+            mvs_output = mvsnet_model(nn_input, K_batch, R_batch, T_batch, d_min, d_int, batch_size, n_views)
 
             print("Batch {:d}:MVS Network Output Size ".format(batch_idx), mvs_output.size())
             

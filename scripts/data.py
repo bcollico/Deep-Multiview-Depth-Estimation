@@ -20,11 +20,12 @@ class Cameras():
 
         self.cam_list   = cam_list  # list of camera indices
         self.base_path  = path      # path to data folder
-        self.class_path = join(self.base_path, 'Cameras')
+        self.class_path = join(self.base_path, 'Cameras','train')
         self.K          = []
         self.R          = []
         self.T          = []
-        self.d          = []
+        self.d          = [] # minimum depth of fronto-parallel plans
+        self.d_int      = [] # spacing between  fronto-parallel planes
         self.pairs      = []
 
         self.file_names  = []
@@ -63,10 +64,11 @@ class Cameras():
                 self.R.append(np.vstack((r1[0:3], r2[0:3], r3[0:3])))
                 self.T.append(np.vstack((r1[-1], r2[-1], r3[-1])))                 
                 self.d.append(np.array([r11[0]]).reshape(-1,1))
+                self.d_int.append(np.array([r11[1]]).reshape(-1,1)) 
 
     def pair(self):
         """Read the pre-computed best pairs for each reference camera view."""
-        with open(join(self.class_path, 'pair.txt')) as f:
+        with open(join(self.class_path,'..','pair.txt')) as f:
             f.readline() # discard the header
             line = f.readline()
             while line:                
@@ -82,7 +84,7 @@ class Depths():
         self.cam_list   = cam_list # list of camera indices
         self.base_path  = path     # path to data folder
         self.class_path = join(self.base_path, 'Depths') # path to depths folder
-        self.scan_path  = [join(self.class_path, 'scan'+str(scan)+'_'+event) \
+        self.scan_path  = [join(self.class_path, 'scan'+str(scan)+'_train') \
                             for scan in scan_idx] # path to each scan in depths
         self.img        = [] # UNUSED | list for storing depth values
 
@@ -243,6 +245,7 @@ class DtuTrainDataset(Dataset):
                 Rref      = unsqz(self.npy_xform(DTU.Cameras.R[ref]), 1)
                 Tref      = unsqz(self.npy_xform(DTU.Cameras.T[ref]), 1)
                 dref      = unsqz(self.npy_xform(DTU.Cameras.d[ref]), 1)
+                dint      = unsqz(self.npy_xform(DTU.Cameras.d_int[ref]), 1)
 
                 K1        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx1]), 1)
                 R1        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx1]), 1)
@@ -257,7 +260,8 @@ class DtuTrainDataset(Dataset):
                 sample['K'] = torch.cat((Kref, K1, K2),dim=0)
                 sample['R'] = torch.cat((Rref, R1, R2),dim=0)
                 sample['T'] = torch.cat((Tref, T1, T2),dim=0)
-                sample['d'] = torch.cat((dref, d1, d2),dim=0)
+                sample['d'] = dref
+                sample['d_int'] = dint
 
                 self.samples.append(sample)
 
@@ -428,44 +432,44 @@ if __name__ == '__main__':
     random.seed(401)
     path = '../data/mvs_training/dtu'
 
-    mean, std = compute_dtu_mean_and_stddev(path)
+    # mean, std = compute_dtu_mean_and_stddev(path)
 
-    # cam_idx=np.arange(49)
+    cam_idx=np.arange(49)
     
-    # for case in cases:
-    #     if case == 'training':
-    #         scan_idx=np.array([2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36,
-    #                 39, 41, 42, 44, 45, 46, 47, 50, 51, 52, 53, 55, 57, 58,
-    #                 60, 61, 63, 64, 65, 68, 69, 70, 71, 72, 74, 76, 83,
-    #                 84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
-    #                 98, 99, 100, 101, 102, 103, 104, 105, 107, 108, 109,
-    #                 111, 112, 113, 115, 116, 119, 120, 121, 122, 123,
-    #                 124, 125, 126, 127, 128, 3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
-    #                 66, 67, 82, 86, 106, 117, 1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
-    #                 34, 48, 49, 62, 75, 77, 110, 114, 118])
-    #         file_name = 'training_dataloader'
-    #         batch_size = 49
-    #     elif case == 'evaluation':
-    #         scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
-    #                              34, 48, 49, 62, 75, 77, 110, 114, 118])
-    #         file_name = 'evaluation_dataloader'
-    #         batch_size = 49
-    #     elif case == 'validation':
-    #         scan_idx= np.array([3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
-    #                             66, 67, 82, 86, 106, 117])
-    #         file_name = 'validation_dataloader'
-    #         batch_size = 49
-    #     elif case == 'test':
-    #         scan_idx = np.array([1,2])
-    #         file_name = 'test_dataloader'
-    #         batch_size = 14
+    for case in cases:
+        if case == 'training':
+            scan_idx=np.array([2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36,
+                    39, 41, 42, 44, 45, 46, 47, 50, 51, 52, 53, 55, 57, 58,
+                    60, 61, 63, 64, 65, 68, 69, 70, 71, 72, 74, 76, 83,
+                    84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
+                    98, 99, 100, 101, 102, 103, 104, 105, 107, 108, 109,
+                    111, 112, 113, 115, 116, 119, 120, 121, 122, 123,
+                    124, 125, 126, 127, 128, 3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
+                    66, 67, 82, 86, 106, 117, 1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
+                    34, 48, 49, 62, 75, 77, 110, 114, 118])
+            file_name = 'training_dataloader'
+            batch_size = 49
+        elif case == 'evaluation':
+            scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
+                                 34, 48, 49, 62, 75, 77, 110, 114, 118])
+            file_name = 'evaluation_dataloader'
+            batch_size = 49
+        elif case == 'validation':
+            scan_idx= np.array([3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
+                                66, 67, 82, 86, 106, 117])
+            file_name = 'validation_dataloader'
+            batch_size = 49
+        elif case == 'test':
+            scan_idx = np.array([1,2])
+            file_name = 'test_dataloader'
+            batch_size = 14
 
-    #     dtu_train_dataloader = get_dtu_loader(path, 
-    #                                           cam_idx, 
-    #                                           scan_idx, 
-    #                                           batch_size=batch_size, 
-    #                                           event=case)
+        dtu_train_dataloader = get_dtu_loader(path, 
+                                              cam_idx, 
+                                              scan_idx, 
+                                              batch_size=batch_size, 
+                                              event=case)
 
-    #     # save dataloader
-    #     torch.save(dtu_train_dataloader, file_name)
+        # save dataloader
+        torch.save(dtu_train_dataloader, file_name)
 

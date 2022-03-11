@@ -222,7 +222,8 @@ class MVSNet(nn.Module):
                           list(self.cost_volume_reg.parameters()) + \
                           list(self.depthmap_refine.parameters())
 
-    def forward(self, nn_input, K_batch, R_batch, T_batch, d_batch, batch_size, n_views):
+    def forward(self, nn_input, K_batch, R_batch, T_batch, d_min, 
+                    d_int, batch_size, n_views):
 
         # TODO: BE SURE TO USE ONLY TORCH OPERATIONS TO ENSURE DIFFERENTIABILITY
 
@@ -230,8 +231,8 @@ class MVSNet(nn.Module):
 
         print("Batch ##:Feature Network Output Size ", feature_maps.size())
 
-        warped_feature_maps = homography_warping(K_batch, R_batch, T_batch, d_batch, 
-                                                feature_maps, batch_size, n_views)
+        warped_feature_maps = homography_warping(K_batch, R_batch, T_batch, 
+                                d_min, d_int, feature_maps, batch_size, n_views)
 
         raise Exception("Stop Here")
 
