@@ -8,18 +8,18 @@ from PIL import Image
 from os.path import join
 from itertools import product
 from tqdm import tqdm
-from utils import unsqueeze_n
+from utils import unsqueeze_n as unsqz
 
 import numpy as np  
 import re
 import random
 
 class Cameras():
-
+    """Class for handling camera parameters."""
     def __init__(self, path, cam_list):
 
-        self.cam_list   = cam_list
-        self.base_path  = path
+        self.cam_list   = cam_list  # list of camera indices
+        self.base_path  = path      # path to data folder
         self.class_path = join(self.base_path, 'Cameras')
         self.K          = []
         self.R          = []
@@ -36,24 +36,28 @@ class Cameras():
         self.pair()
 
     def load(self):
+        """Load camera intrinsics and extrinsics from file."""
         for file_ in self.file_names:
             with open(file_) as f:
-                f.readline()                
+                f.readline() # text line
+
+                # extrinsics     
                 r1 = np.float64(f.readline().split())
                 r2 = np.float64(f.readline().split())
                 r3 = np.float64(f.readline().split())
-                r4 = np.float64(f.readline().split())
+                r4 = np.float64(f.readline().split()) # r4 = [0, 0, 0, 1]
 
-                f.readline(); f.readline()
+                f.readline(); f.readline() # empty lines
+
+                # intrinsics
                 r7 = np.float64(f.readline().split())
                 r8 = np.float64(f.readline().split())
                 r9 = np.float64(f.readline().split())
 
-                f.readline()
-                r11= np.float64(f.readline().split())
+                f.readline()# empty line
 
-                K = np.vstack((r7,r8,r9))
-                R = np.vstack((r1[0:3], r2[0:3], r3[0:3]))
+                #depth
+                r11= np.float64(f.readline().split())
 
                 self.K.append(np.vstack((r7,r8,r9)))
                 self.R.append(np.vstack((r1[0:3], r2[0:3], r3[0:3])))
@@ -61,7 +65,7 @@ class Cameras():
                 self.d.append(np.array([r11[0]]).reshape(-1,1))
 
     def pair(self):
-
+        """Read the pre-computed best pairs for each reference camera view."""
         with open(join(self.class_path, 'pair.txt')) as f:
             f.readline() # discard the header
             line = f.readline()
@@ -72,17 +76,17 @@ class Cameras():
                 line = f.readline().split()
 
 
-
 class Depths():
-
+    """Class for handling ground truth depth values."""
     def __init__(self, path, cam_list, scan_idx=1, event='train'):
-        self.cam_list   = cam_list
-        self.base_path  = path
-        self.class_path = join(self.base_path, 'Depths')
-        self.scan_path  = [join(self.class_path, 'scan'+str(scan)+'_'+event) for scan in scan_idx]
-        self.img        = []
+        self.cam_list   = cam_list # list of camera indices
+        self.base_path  = path     # path to data folder
+        self.class_path = join(self.base_path, 'Depths') # path to depths folder
+        self.scan_path  = [join(self.class_path, 'scan'+str(scan)+'_'+event) \
+                            for scan in scan_idx] # path to each scan in depths
+        self.img        = [] # UNUSED | list for storing depth values
 
-        self.file_names  = []
+        self.file_names  = [] # list of depth filenames for dataloader
         for scan_path in self.scan_path:
             temp_file_names = []
             for idx in self.cam_list:
@@ -90,9 +94,10 @@ class Depths():
                 temp_file_names.append(join(scan_path, num))
             self.file_names.append(temp_file_names)
 
-        self.load()
+        # self.load() # do not load depth maps until __getitem__
 
     def load(self):
+        """UNUSED | Load the ground truth depth map values from file."""
         for scan in self.file_names:
             img_temp = []
             for file_ in scan:
@@ -108,7 +113,8 @@ class Depths():
                     else:
                         raise Exception("Invalid Header for PFM file.")
                     
-                    dim_match = re.match(r'^(\d+)\s(\d+)\s$', f.readline().decode('UTF-8'))
+                    dim_match = re.match(r'^(\d+)\s(\d+)\s$', 
+                                    f.readline().decode('UTF-8'))
                     if dim_match:
                         width, height = map(int, dim_match.groups())
                     else:
@@ -129,16 +135,17 @@ class Depths():
 
 
 class Rectified():
-
-    def __init__(self, path, cam_list, scan_idx=1, light_idx=np.arange(7), event='train'):
+    """Class for handling rectified camera images from modified DTU dataset."""
+    def __init__(self, path, cam_list, scan_idx=1, event='train'):
         self.cam_list   = cam_list
         self.base_path  = path
         self.class_path = join(self.base_path, 'Rectified')
-        self.scan_path  = [join(self.class_path, 'scan'+str(scan)+'_'+event) for scan in scan_idx]
+        self.scan_path  = [join(self.class_path, 
+                            'scan'+str(scan)+'_'+event) for scan in scan_idx]
 
         self.file_names      = []
-        # for i in range(7):
-        #     self.file_names[str(i)] = []
+
+        light_idx=np.arange(7) # 7 lighting conditions
 
         for scan_path in self.scan_path:
             temp_scan_file_names = []
@@ -147,22 +154,26 @@ class Rectified():
                 for idx in self.cam_list:
                     # camera labels in image filename are offset by one
                     # e.g. cam 0 corresponds to img rect_001_<light>_r5000.png
-                    num = 'rect_'+'{:0>3}'.format(str(idx+1))+'_'+str(i)+'_r5000.png'
+                    num = 'rect_'+'{:0>3}'.format(str(idx+1)) \
+                            +'_'+str(i)+'_r5000.png'
                     temp_light_file_names.append(join(scan_path, num))
                 temp_scan_file_names.append(temp_light_file_names)
             self.file_names.append(temp_scan_file_names)
 
 class DtuReader():
-
+    """Aggregate class for DTU camera parameters, depth maps, and source images.
+    Used in creating DtuTrainDataset PyTorch Dataset."""
     def __init__(self, folder_path, cam_idx, scan_idx, event):
 
-        self.cam_idx   = cam_idx
-        self.scan_idx  = scan_idx
-        self.event     = event
+        self.cam_idx   = cam_idx   # cameras to include in dataset
+        self.scan_idx  = scan_idx  # list of scan indices to include in dataset
+        self.event     = event     # 'training', 'validation', 'evaluation'
 
         self.Cameras   = Cameras(folder_path, cam_idx)
-        self.Depths    = Depths(folder_path, cam_idx, scan_idx=scan_idx, event=event)
-        self.Images    = Rectified(folder_path, cam_idx, scan_idx=scan_idx, event=event)
+        self.Depths    = Depths(folder_path, cam_idx, 
+                                    scan_idx=scan_idx, event=event)
+        self.Images    = Rectified(folder_path, cam_idx, 
+                                    scan_idx=scan_idx, event=event)
 
         self.n_images  = len(cam_idx)*len(scan_idx)
         
@@ -170,74 +181,72 @@ class DtuReader():
         return self.n_images
 
 class DtuTrainDataset(Dataset):
+    """PyTorch datset for modified DTU data."""
+    def __init__(self, DTU:DtuReader):
 
-    def __init__(self, DTU:DtuReader, scan_idx):
+        self.samples = [] # List of samples
 
-        self.samples = []
-        self.tensor_transform_img = transforms.Compose([
+        # Image transformations, TODO: Get mean and std for normalization
+        self.img_xform = transforms.Compose([
             transforms.PILToTensor(),
             transforms.ConvertImageDtype(torch.float)
         ])
-        self.tensor_transform_depth = torch.from_numpy
 
-        # for ref in ref_cam_idx:
-        #     for light in light_idx:
-        #         for pair in pair_idx:
+        # Transformation to torch.float32
+        self.npy_xform = torch.FloatTensor
 
-        ref_cam_idx = np.arange(49)
-        light_idx_choices = np.arange(7)
+        self.scan_idx = DTU.scan_idx # list of scans to include in dataset
+        scan_idx      = self.scan_idx
 
-        sample_iter = product(scan_idx, ref_cam_idx)
+        ref_cam_idx       = DTU.cam_idx
+        light_idx_choices = np.arange(7) # choose from all lighting angles
 
-        total = len(scan_idx)*len(ref_cam_idx)
+        sample_iter = product(np.arange(len(scan_idx)),    # scan     indexing
+                              np.arange(7),                # lighting indexing
+                              np.arange(len(ref_cam_idx))) # cam      indexing
+
+        total = len(scan_idx)*len(ref_cam_idx)*7 # total samples (for tqdm)
         with tqdm(total=total) as pbar:
-            for (scan, ref) in sample_iter:
-
-                light_ref = np.random.randint(0,7)
+            for (scan, light_ref, ref) in sample_iter:
 
                 ref_pairs = DTU.Cameras.pairs[ref]
                 pair_idx  = random.sample(set(ref_pairs), 2) # 2 random unique
                 light_idx = random.choices(light_idx_choices, k=2) # 2 random
-                pair_idx1 = pair_idx[0] # cam indices start at 0, don't subtract 1
+                pair_idx1 = pair_idx[0] # cam idx start at 0, don't subtract 1
                 pair_idx2 = pair_idx[1]
 
-                # print(ref, light_ref, light_idx[0], light_idx[1], pair_idx)
-
-                # get reference image and two
+                # get reference image and two auxilliary views
                 image_ref = DTU.Images.file_names[scan][light_ref][ref]
                 image_one = DTU.Images.file_names[scan][light_idx[0]][pair_idx1]
                 image_two = DTU.Images.file_names[scan][light_idx[1]][pair_idx2]
 
                 sample = dict()
-                sample['scan_idx']  = scan
-                sample['ref_idx']   = ref
+
+                # store image and depth map file names
+                sample['img_filenames']  = [image_ref, image_one, image_two]
+                sample['depth_filename'] = DTU.Depths.file_names[scan][ref]
+
+                # store pertinent sample information
+                sample['scan_idx']  = self.scan_idx[scan]
+                sample['ref_idx']   = ref_cam_idx[ref]
                 sample['pair_idx']  = pair_idx
-                sample['light_idx'] = light_idx
-
-                # sample['view_ref']  = self.tensor_transform_img(Image.open(image_ref).convert('RGB'))
-                # sample['view_one']  = self.tensor_transform_img(Image.open(image_one).convert('RGB'))
-                # sample['view_two']  = self.tensor_transform_img(Image.open(image_two).convert('RGB'))
-                view_ref  = torch.unsqueeze(self.tensor_transform_img(Image.open(image_ref).convert('RGB')), 0)
-                view_one  = torch.unsqueeze(self.tensor_transform_img(Image.open(image_one).convert('RGB')), 0)
-                view_two  = torch.unsqueeze(self.tensor_transform_img(Image.open(image_two).convert('RGB')), 0)
-                    
-                sample['input_img'] = torch.cat((view_ref, view_one, view_two), dim=0)
-                sample['depth_ref'] = unsqueeze_n(self.tensor_transform_depth(DTU.Depths.img[scan][ref]), 2)
+                sample['light_idx'] = np.concatenate((np.array([light_ref]), 
+                                                        light_idx))
                 
-                Kref      = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.K[ref]), 1)
-                Rref      = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.R[ref]), 1)
-                Tref      = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.T[ref]), 1)
-                dref      = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.d[ref]), 1)
+                Kref      = unsqz(self.npy_xform(DTU.Cameras.K[ref]), 1)
+                Rref      = unsqz(self.npy_xform(DTU.Cameras.R[ref]), 1)
+                Tref      = unsqz(self.npy_xform(DTU.Cameras.T[ref]), 1)
+                dref      = unsqz(self.npy_xform(DTU.Cameras.d[ref]), 1)
 
-                K1        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.K[pair_idx1]), 1)
-                R1        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.R[pair_idx1]), 1)
-                T1        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.T[pair_idx1]), 1)
-                d1        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.d[pair_idx1]), 1)
+                K1        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx1]), 1)
+                R1        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx1]), 1)
+                T1        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx1]), 1)
+                d1        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx1]), 1)
 
-                K2        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.K[pair_idx2]), 1)
-                R2        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.R[pair_idx2]), 1)
-                T2        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.T[pair_idx2]), 1)
-                d2        = unsqueeze_n(self.tensor_transform_depth(DTU.Cameras.d[pair_idx2]), 1)
+                K2        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx2]), 1)
+                R2        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx2]), 1)
+                T2        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx2]), 1)
+                d2        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx2]), 1)
 
                 sample['K'] = torch.cat((Kref, K1, K2),dim=0)
                 sample['R'] = torch.cat((Rref, R1, R2),dim=0)
@@ -252,20 +261,68 @@ class DtuTrainDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        return self.samples[idx]
+
+        sample = self.samples[idx]
+
+        # reference view
+        input_img = torch.unsqueeze(self.img_xform(Image.open(
+                        sample['img_filenames'][0]).convert('RGB')), 0)
+
+        for i in range(1,len(sample['img_filenames'])):
+            next_view = torch.unsqueeze(self.img_xform(Image.open(
+                        sample['img_filenames'][i]).convert('RGB')), 0)
+            input_img = torch.cat((input_img, next_view), dim=0)
+         
+        sample['input_img'] = input_img
+        sample['depth_ref'] = unsqz(self.npy_xform(
+                                load_depth(sample['depth_filename'])), 2)
+
+        return sample
+    
+def load_depth(depth_filename):
+    with open(depth_filename, 'rb') as f:
+        # This is largely taken from the source MVSNet repository
+        # included in this repo
+        header = f.readline().decode('UTF-8').rstrip()
+
+        if header == 'PF':
+            ch_dim = 3
+        elif header == 'Pf':
+            ch_dim = 1
+        else:
+            raise Exception("Invalid Header for PFM file.")
+        
+        dim_match = re.match(r'^(\d+)\s(\d+)\s$', f.readline().decode('UTF-8'))
+        if dim_match:
+            width, height = map(int, dim_match.groups())
+        else:
+            raise Exception("PFM header gives no dimensions.")
+        
+        scale = float((f.readline()).decode('UTF-8').rstrip())
+        if scale > 0:
+            data_type = '<f'
+        else:
+            data_type = '>f'
+        
+        data_string = f.read()
+        data = np.frombuffer(data_string, data_type)
+        data = np.reshape(data, (height, width, ch_dim))
+        data = flip(data,0)
+    return data
 
 def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
                     batch_size=14, i_start=0):
 
-    if event=='train':
+    if event=='training' or event=='validation':
         shuffle=True
     else:
         shuffle=False
     print("Constructing Training Dataloader...")
-    DTU             = DtuReader(folder_path, cam_idx, scan_idx, light_idx, event)
-    dtu_dataset     = DtuTrainDataset(DTU, scan_idx-1)
+    DTU             = DtuReader(folder_path, cam_idx, scan_idx, event)
+    dtu_dataset     = DtuTrainDataset(DTU)
 
-    # sampler         = CustomSampler(dtu_dataset, i=i_start, batch_size=batch_size)
+    # sampler         = CustomSampler(dtu_dataset, i=i_start, 
+    #                                   batch_size=batch_size)
     dtu_dataloader  = DataLoader(dataset=dtu_dataset, 
                                  batch_size=batch_size, 
                                 #  sampler=sampler, 
@@ -279,10 +336,10 @@ def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
 
 class CustomSampler(Sampler):
     """Resumable sampler code adapted from 
-    https://stackoverflow.com/questions/60993677/how-can-i-save-pytorchs-dataloader-instance
-    to allow for pausing/resuming training with the same dataloader state.
-    By knowing i_batch during training, we can load the dataloader from file and
-    resume the sequence exactly where we left off."""
+    https://stackoverflow.com/questions/60993677/how-can-i-save-pytorchs-
+    dataloader-instance to allow for pausing/resuming training with the same 
+    dataloader state. By knowing i_batch during training, we can load the 
+    dataloader from file and resume the sequence exactly where we left off."""
     def __init__(self, data, i=0, batch_size=14):
         random.shuffle(data)
         self.seq = list(range(len(data)))[i * batch_size:]
@@ -295,56 +352,49 @@ class CustomSampler(Sampler):
 
 
 if __name__ == '__main__':
+    """Create dataloaders using training/validation/evaluation split from
+    MVS paper."""
 
-    case = 'training' # 'evaluation', 'validation'
-    batch_size = 49
+    # 'test', 'training', 'evaluation', 'validation'
+    cases = ['test', 'training', 'validation', 'evaluation']
 
     random.seed(401)
     path = '../data/mvs_training/dtu'
 
     cam_idx=np.arange(49)
     
-    if case == 'training':
-        scan_idx=np.arange(2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36, 39, 41, 42, 44,
-45, 46, 47, 50, 51, 52, 53, 55, 57, 58, 60, 61, 63, 64, 65, 68, 69, 70, 71, 72,
-74, 76, 83, 84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
-101, 102, 103, 104, 105, 107, 108, 109, 111, 112, 113, 115, 116, 119, 120,
-121, 122, 123, 124, 125, 126, 127, 128)
-        file_name = 'training_dataloader'
-    elif case == 'evaluation':
-        scan_idx=np.arange(1, 4, 9, 10, 11,
-12, 13, 15, 23, 24, 29, 32, 33, 34, 48, 49, 62, 75, 77, 110, 114, 118)
-        file_name = 'evaluation_dataloader'
-    elif case == 'validation':
-        scan_idx=np.arange(3, 5, 17, 21, 28, 35,
-37, 38, 40, 43, 56, 59, 66, 67, 82, 86, 106, 117)
-        file_name = 'validation_dataloader'
+    for case in cases:
+        if case == 'training':
+            scan_idx=np.array([2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36,
+                    39, 41, 42, 44, 45, 46, 47, 50, 51, 52, 53, 55, 57, 58,
+                    60, 61, 63, 64, 65, 68, 69, 70, 71, 72, 74, 76, 83,
+                    84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
+                    98, 99, 100, 101, 102, 103, 104, 105, 107, 108, 109,
+                    111, 112, 113, 115, 116, 119, 120, 121, 122, 123,
+                    124, 125, 126, 127, 128])
+            file_name = 'training_dataloader'
+            batch_size = 49
+        elif case == 'evaluation':
+            scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
+                                 34, 48, 49, 62, 75, 77, 110, 114, 118])
+            file_name = 'evaluation_dataloader'
+            batch_size = 49
+        elif case == 'validation':
+            scan_idx= np.array([3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
+                                66, 67, 82, 86, 106, 117])
+            file_name = 'validation_dataloader'
+            batch_size = 49
+        elif case == 'test':
+            scan_idx = np.array([1,2])
+            file_name = 'test_dataloader'
+            batch_size = 14
 
-    light_idx=np.arange(7)
+        dtu_train_dataloader = get_dtu_loader(path, 
+                                              cam_idx, 
+                                              scan_idx, 
+                                              batch_size=batch_size, 
+                                              event=case)
 
-    DTU = DtuReader(path, cam_idx=np.arange(49), scan_idx=np.arange(1,2), light_idx=np.arange(7), event='train')
-
-    dtu_train_dataset = DtuTrainDataset(DTU, np.arange(0, 1))
-
-    dtu_train_dataloader = get_dtu_loader(path, cam_idx, scan_idx, light_idx, event='train')
-
-    torch.save(dtu_train_dataloader, file_path)
-
-    # dtu_train_dataloader = torch.load(file_path)
-
-    # print(dtu_train_dataset.__getitem__(0))
-    # print(dtu_train_dataset.__len__())
-    # print(DTU.Cameras.pairs[0])
-    print(len(list(dtu_train_dataloader)))
-#    for idx, batch in enumerate(dtu_train_dataloader):
-#        print(idx, batch['input_img'].size())
-#        print(idx, batch['depth_ref'].size())
-#        print(idx, batch['K'].size())
-#        print(idx, batch['R'].size())
-#        print(idx, batch['T'].size())
-#        print(idx, batch['d'].size())
-        # print(idx, batch['camera']['Rref'].size())
-        # for sidx in range(batch['input_img'].size()[0]):
-            # print(batch['input_img'][idx,:,:,:,:].size())
-        # print(idx, batch['input_img'].view(-1, 3, 512, 640).size())
+        # save dataloader
+        torch.save(dtu_train_dataloader, file_name)
 
