@@ -141,7 +141,7 @@ class Rectified():
         self.base_path  = path
         self.class_path = join(self.base_path, 'Rectified')
         self.scan_path  = [join(self.class_path, 
-                            'scan'+str(scan)+'_'+event) for scan in scan_idx]
+                            'scan'+str(scan)+'_train') for scan in scan_idx]
 
         self.file_names      = []
 
@@ -202,10 +202,11 @@ class DtuTrainDataset(Dataset):
         light_idx_choices = np.arange(7) # choose from all lighting angles
 
         sample_iter = product(np.arange(len(scan_idx)),    # scan     indexing
-                              np.arange(7),                # lighting indexing
+                              light_idx_choices,           # lighting indexing
                               np.arange(len(ref_cam_idx))) # cam      indexing
 
-        total = len(scan_idx)*len(ref_cam_idx)*7 # total samples (for tqdm)
+        # total samples (for tqdm)
+        total = len(scan_idx)*len(ref_cam_idx)*len(light_idx_choices) 
         with tqdm(total=total) as pbar:
             for (scan, light_ref, ref) in sample_iter:
 
@@ -334,6 +335,63 @@ def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
 
     return dtu_dataloader
 
+def compute_dtu_mean_and_stddev(path):
+    """Compute the mean and standard deviation of all images in the dataset."""
+
+    scans = np.array([
+        1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,
+        14,  15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  28,  29,
+        30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41,  42,
+        43,  44,  45,  46,  47,  48,  49,  50,  51,  52,  53,  55,  56,
+        57,  58,  59,  60,  61,  62,  63,  64,  65,  66,  67,  68,  69,
+        70,  71,  72,  74,  75,  76,  77,  82,  83,  84,  85,  86,  87,
+        88,  89,  90,  91,  92,  93,  94,  95,  96,  97,  98,  99, 100,
+       101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
+       114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126,
+       127, 128
+       ])
+
+    DTU=DtuReader(path, np.arange(49), scans, '')
+
+    mean = torch.zeros(3)
+    stddev = torch.zeros(3)
+
+    cam_idx   = DTU.cam_idx
+    scan_idx  = DTU.scan_idx
+    light_idx = np.arange(7)
+
+    sample_iter = product(np.arange(len(scan_idx)),   # scan     indexing
+                          light_idx,                  # lighting indexing
+                          np.arange(len(cam_idx)))    # cam      indexing
+
+    img_xform = transforms.Compose([
+            transforms.PILToTensor(),
+            transforms.ConvertImageDtype(torch.float)
+        ])
+
+    total = len(scan_idx)*len(light_idx)*len(cam_idx)
+    with tqdm(total=total) as pbar:
+        for (scan, light_ref, ref) in sample_iter:
+            img = img_xform(Image.open(
+                    DTU.Images.file_names[scan][light_ref][ref]).convert('RGB'))
+
+            mean += torch.sum(img, (1,2))
+            pbar.update(1)
+    mean = mean / total
+
+    with tqdm(total=total) as pbar:
+        for (scan, light_ref, ref) in sample_iter:
+            img = img_xform(Image.open(
+                    DTU.Images.file_names[scan][light_ref][ref]).convert('RGB'))
+
+            std += ((img - mean.unsqueeze(1).unsqueeze(1))**2).sum([1,2])
+            pbar.update(1)
+    std = torch.sqrt(std / (total*512*640))
+    
+
+    print(mean, stddev)
+    return mean, stddev
+
 class CustomSampler(Sampler):
     """Resumable sampler code adapted from 
     https://stackoverflow.com/questions/60993677/how-can-i-save-pytorchs-
@@ -361,40 +419,44 @@ if __name__ == '__main__':
     random.seed(401)
     path = '../data/mvs_training/dtu'
 
-    cam_idx=np.arange(49)
+    mean, std = compute_dtu_mean_and_stddev(path)
+
+    # cam_idx=np.arange(49)
     
-    for case in cases:
-        if case == 'training':
-            scan_idx=np.array([2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36,
-                    39, 41, 42, 44, 45, 46, 47, 50, 51, 52, 53, 55, 57, 58,
-                    60, 61, 63, 64, 65, 68, 69, 70, 71, 72, 74, 76, 83,
-                    84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
-                    98, 99, 100, 101, 102, 103, 104, 105, 107, 108, 109,
-                    111, 112, 113, 115, 116, 119, 120, 121, 122, 123,
-                    124, 125, 126, 127, 128])
-            file_name = 'training_dataloader'
-            batch_size = 49
-        elif case == 'evaluation':
-            scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
-                                 34, 48, 49, 62, 75, 77, 110, 114, 118])
-            file_name = 'evaluation_dataloader'
-            batch_size = 49
-        elif case == 'validation':
-            scan_idx= np.array([3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
-                                66, 67, 82, 86, 106, 117])
-            file_name = 'validation_dataloader'
-            batch_size = 49
-        elif case == 'test':
-            scan_idx = np.array([1,2])
-            file_name = 'test_dataloader'
-            batch_size = 14
+    # for case in cases:
+    #     if case == 'training':
+    #         scan_idx=np.array([2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36,
+    #                 39, 41, 42, 44, 45, 46, 47, 50, 51, 52, 53, 55, 57, 58,
+    #                 60, 61, 63, 64, 65, 68, 69, 70, 71, 72, 74, 76, 83,
+    #                 84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
+    #                 98, 99, 100, 101, 102, 103, 104, 105, 107, 108, 109,
+    #                 111, 112, 113, 115, 116, 119, 120, 121, 122, 123,
+    #                 124, 125, 126, 127, 128, 3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
+    #                 66, 67, 82, 86, 106, 117, 1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
+    #                 34, 48, 49, 62, 75, 77, 110, 114, 118])
+    #         file_name = 'training_dataloader'
+    #         batch_size = 49
+    #     elif case == 'evaluation':
+    #         scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
+    #                              34, 48, 49, 62, 75, 77, 110, 114, 118])
+    #         file_name = 'evaluation_dataloader'
+    #         batch_size = 49
+    #     elif case == 'validation':
+    #         scan_idx= np.array([3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
+    #                             66, 67, 82, 86, 106, 117])
+    #         file_name = 'validation_dataloader'
+    #         batch_size = 49
+    #     elif case == 'test':
+    #         scan_idx = np.array([1,2])
+    #         file_name = 'test_dataloader'
+    #         batch_size = 14
 
-        dtu_train_dataloader = get_dtu_loader(path, 
-                                              cam_idx, 
-                                              scan_idx, 
-                                              batch_size=batch_size, 
-                                              event=case)
+    #     dtu_train_dataloader = get_dtu_loader(path, 
+    #                                           cam_idx, 
+    #                                           scan_idx, 
+    #                                           batch_size=batch_size, 
+    #                                           event=case)
 
-        # save dataloader
-        torch.save(dtu_train_dataloader, file_name)
+    #     # save dataloader
+    #     torch.save(dtu_train_dataloader, file_name)
 
