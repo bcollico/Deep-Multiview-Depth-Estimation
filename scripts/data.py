@@ -186,10 +186,15 @@ class DtuTrainDataset(Dataset):
 
         self.samples = [] # List of samples
 
+        mean = torch.tensor([0.3941, 0.3366, 0.2942]) # precomputed
+        std  = torch.tensor([0.3387, 0.3264, 0.3185]) # precomputed
+
+
         # Image transformations, TODO: Get mean and std for normalization
         self.img_xform = transforms.Compose([
             transforms.PILToTensor(),
-            transforms.ConvertImageDtype(torch.float)
+            transforms.ConvertImageDtype(torch.float),
+            transforms.Normalize(mean, std)
         ])
 
         # Transformation to torch.float32
@@ -379,6 +384,10 @@ def compute_dtu_mean_and_stddev(path):
             pbar.update(1)
     mean = mean / total
 
+    sample_iter = product(np.arange(len(scan_idx)),   # scan     indexing
+                          light_idx,                  # lighting indexing
+                          np.arange(len(cam_idx)))    # cam      indexing
+    
     with tqdm(total=total) as pbar:
         for (scan, light_ref, ref) in sample_iter:
             img = img_xform(Image.open(
