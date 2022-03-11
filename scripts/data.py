@@ -258,15 +258,18 @@ def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
                     batch_size=14, i_start=0):
 
     if event=='train':
-        print("Constructing Training Dataloader...")
-        DTU             = DtuReader(folder_path, cam_idx, scan_idx, event)
-        dtu_dataset     = DtuTrainDataset(DTU, scan_idx-1)
+        shuffle=True
+    else:
+        shuffle=False
+    print("Constructing Training Dataloader...")
+    DTU             = DtuReader(folder_path, cam_idx, scan_idx, light_idx, event)
+    dtu_dataset     = DtuTrainDataset(DTU, scan_idx-1)
 
-        # sampler         = CustomSampler(dtu_dataset, i=i_start, batch_size=batch_size)
-        dtu_dataloader  = DataLoader(dataset=dtu_dataset, 
-                                     batch_size=batch_size, 
-                                    #  sampler=sampler, 
-                                     shuffle=True)
+    # sampler         = CustomSampler(dtu_dataset, i=i_start, batch_size=batch_size)
+    dtu_dataloader  = DataLoader(dataset=dtu_dataset, 
+                                 batch_size=batch_size, 
+                                #  sampler=sampler, 
+                                 shuffle=shuffle)
 
     print("\nDataloader Finished.")
     print("    Batch Size: {:d}".format(batch_size))
@@ -292,26 +295,54 @@ class CustomSampler(Sampler):
 
 
 if __name__ == '__main__':
+
+    case = 'training' # 'evaluation', 'validation'
+    batch_size = 49
+
     random.seed(401)
     path = '../data/mvs_training/dtu'
+
     cam_idx=np.arange(49)
-    scan_idx=np.arange(1,3)
-    # DTU = DtuReader(path, cam_idx=np.arange(49), scan_idx=np.arange(1,2), light_idx=np.arange(7), event='train')
-    # dtu_train_dataset = DtuTrainDataset(DTU, np.arange(0, 1))
-    dtu_train_dataloader = get_dtu_loader(path, cam_idx, scan_idx, event='train')
-    torch.save(dtu_train_dataloader, "test_dataloader")
-    # dtu_train_dataloader = torch.load("test_dataloader")
+    
+    if case == 'training':
+        scan_idx=np.arange(2, 6, 7, 8, 14, 16, 18, 19, 20, 22, 30, 31, 36, 39, 41, 42, 44,
+45, 46, 47, 50, 51, 52, 53, 55, 57, 58, 60, 61, 63, 64, 65, 68, 69, 70, 71, 72,
+74, 76, 83, 84, 85, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
+101, 102, 103, 104, 105, 107, 108, 109, 111, 112, 113, 115, 116, 119, 120,
+121, 122, 123, 124, 125, 126, 127, 128)
+        file_name = 'training_dataloader'
+    elif case == 'evaluation':
+        scan_idx=np.arange(1, 4, 9, 10, 11,
+12, 13, 15, 23, 24, 29, 32, 33, 34, 48, 49, 62, 75, 77, 110, 114, 118)
+        file_name = 'evaluation_dataloader'
+    elif case == 'validation':
+        scan_idx=np.arange(3, 5, 17, 21, 28, 35,
+37, 38, 40, 43, 56, 59, 66, 67, 82, 86, 106, 117)
+        file_name = 'validation_dataloader'
+
+    light_idx=np.arange(7)
+
+    DTU = DtuReader(path, cam_idx=np.arange(49), scan_idx=np.arange(1,2), light_idx=np.arange(7), event='train')
+
+    dtu_train_dataset = DtuTrainDataset(DTU, np.arange(0, 1))
+
+    dtu_train_dataloader = get_dtu_loader(path, cam_idx, scan_idx, light_idx, event='train')
+
+    torch.save(dtu_train_dataloader, file_path)
+
+    # dtu_train_dataloader = torch.load(file_path)
+
     # print(dtu_train_dataset.__getitem__(0))
     # print(dtu_train_dataset.__len__())
     # print(DTU.Cameras.pairs[0])
-
-    for idx, batch in enumerate(dtu_train_dataloader):
-        print(idx, batch['input_img'].size())
-        print(idx, batch['depth_ref'].size())
-        print(idx, batch['K'].size())
-        print(idx, batch['R'].size())
-        print(idx, batch['T'].size())
-        print(idx, batch['d'].size())
+    print(len(list(dtu_train_dataloader)))
+#    for idx, batch in enumerate(dtu_train_dataloader):
+#        print(idx, batch['input_img'].size())
+#        print(idx, batch['depth_ref'].size())
+#        print(idx, batch['K'].size())
+#        print(idx, batch['R'].size())
+#        print(idx, batch['T'].size())
+#        print(idx, batch['d'].size())
         # print(idx, batch['camera']['Rref'].size())
         # for sidx in range(batch['input_img'].size()[0]):
             # print(batch['input_img'][idx,:,:,:,:].size())
