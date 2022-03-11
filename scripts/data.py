@@ -354,7 +354,7 @@ def compute_dtu_mean_and_stddev(path):
     DTU=DtuReader(path, np.arange(49), scans, '')
 
     mean = torch.zeros(3)
-    stddev = torch.zeros(3)
+    std  = torch.zeros(3)
 
     cam_idx   = DTU.cam_idx
     scan_idx  = DTU.scan_idx
@@ -389,8 +389,8 @@ def compute_dtu_mean_and_stddev(path):
     std = torch.sqrt(std / (total*512*640))
     
 
-    print(mean, stddev)
-    return mean, stddev
+    print(mean, std)
+    return mean, std
 
 class CustomSampler(Sampler):
     """Resumable sampler code adapted from 
