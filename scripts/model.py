@@ -1,10 +1,13 @@
-from numpy import extract
 import torch
 import torch.nn as nn
+import torch.nn.functional as f
 
 from homography import homography_warping
 from costvolume import assemble_cost_volume
 from depthmap import extract_depth_map
+from utils import print_gpu_memory
+
+from config import D_NUM, DEVICE, PAD, OUTPAD, DIM_REDUCE
 
 # from torch.autograd import Variable
 # import numpy as np
@@ -17,55 +20,37 @@ from depthmap import extract_depth_map
 
 class FeatureEncoder(nn.Module):
 
-    def __init__(self, in_ch=3, base_filt=8, device=None):
+    def __init__(self, in_ch=3, base_filt=8, device=DEVICE):
         super(FeatureEncoder, self).__init__()
 
-        # example convolutional network pytorch vs tensorflow:
-        # filters = out_channels
-        # third dimension of the input shape is the in_channels
-        # n.Conv2d(1, 6, kernel_size=5, stride=1, padding=2)
-        # keras.layers.Conv2D(input_shape=(28,28,1), filters=6, kernel_size=5, strides=1, padding="same", activation=tf.nn.relu)
-        #
-        # MVSNet
-        # conv = self.conv(input_tensor, kernel_size, filters, strides, name, relu=False,
-        #                  dilation_rate=dilation_rate, padding=padding,
-        #                  biased=biased, reuse=reuse, separable=separable)
-        # conv_bn = self.batch_normalization(conv, name + '/bn',
-        #                                    center=center, scale=scale, relu=relu, reuse=reuse)
-        # 
-        # .conv_bn(3, base_filter, 1, center=True, scale=True, name='conv0_0')
-        # .conv_bn(3, base_filter, 1, center=True, scale=True, name='conv0_1')
-        # .conv_bn(5, base_filter * 2, 2, center=True, scale=True, name='conv1_0')
-        # .conv_bn(3, base_filter * 2, 1, center=True, scale=True, name='conv1_1')
-        # .conv_bn(3, base_filter * 2, 1, center=True, scale=True, name='conv1_2')
-        # .conv_bn(5, base_filter * 4, 2, center=True, scale=True, name='conv2_0')
-        # .conv_bn(3, base_filter * 4, 1, center=True, scale=True, name='conv2_1')
-        # .conv(3, base_filter * 4, 1, biased=False, relu=False, name='conv2_2'))
-        # .conv_bn(kernel, filters, stride, center=True, scale=True, name='conv0_0')
+        out_1 = base_filt
+        out_2 = int(base_filt * DIM_REDUCE/2)
+        out_3 = int(base_filt * DIM_REDUCE  )
 
         self.model = nn.Sequential(
-            ConvLayer2D(in_ch, base_filt, kernel=3, stride=1, padding=1, device=device),
-            BNLayer(base_filt), ReLULayer(),
 
-            ConvLayer2D(base_filt, base_filt, kernel=3, stride=1, padding=1, device=device),
-            BNLayer(base_filt), ReLULayer(),
+            ConvLayer2D(in_ch, out_1, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(out_1), ReLULayer(),
 
-            ConvLayer2D(base_filt, base_filt*2, kernel=5, stride=2, padding=2, device=device),
-            BNLayer(base_filt*2), ReLULayer(),
+            ConvLayer2D(out_1, out_1, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(out_1), ReLULayer(),
 
-            ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device),
-            BNLayer(base_filt*2), ReLULayer(),
+            ConvLayer2D(out_1, out_2, kernel=5, stride=2, padding=2, device=device),
+            BNLayer(out_2), ReLULayer(),
 
-            ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device),
-            BNLayer(base_filt*2), ReLULayer(),
+            ConvLayer2D(out_2, out_2, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(out_2), ReLULayer(),
 
-            ConvLayer2D(base_filt*2, base_filt*4, kernel=5, stride=2, padding=2, device=device),
-            BNLayer(base_filt*4), ReLULayer(),
+            ConvLayer2D(out_2, out_2, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(out_2), ReLULayer(),
 
-            ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, device=device),
-            BNLayer(base_filt*4), ReLULayer(),
+            ConvLayer2D(out_2, out_3, kernel=5, stride=2, padding=2, device=device),
+            BNLayer(out_3), ReLULayer(),
 
-            ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, bias=False, device=device)
+            ConvLayer2D(out_3, out_3, kernel=3, stride=1, padding=1, device=device),
+            BNLayer(out_3), ReLULayer(),
+
+            ConvLayer2D(out_3, out_3, kernel=3, stride=1, padding=1, bias=False, device=device)
         )
 
     def forward(self, input):
@@ -75,80 +60,30 @@ class FeatureEncoder(nn.Module):
 
 class CostVolumeReg(nn.Module):
 
-    def __init__(self, in_ch=32, base_filt=8, device=None):
+    def __init__(self, in_ch=32, base_filt=8, device=DEVICE):
         super(CostVolumeReg, self).__init__()
 
-    #  (self.feed('data')
-    # .conv_bn(3, base_filter * 2, 2, center=True, scale=True, name='3dconv1_0') #32 in channels, 16 out channels, stride 2
-    # .conv_bn(3, base_filter * 4, 2, center=True, scale=True, name='3dconv2_0') #32 in channels, 32 out channels, stride 2
-    # .conv_bn(3, base_filter * 8, 2, center=True, scale=True, name='3dconv3_0'))#32 in channels, 64 out channels, stride 2
+        self.conv_0_0 = ConvLayer3D(in_ch, base_filt*1, kernel=3, stride=1, padding=1, device=device) # input data
+        self.conv_1_0 = ConvLayer3D(in_ch, base_filt*2, kernel=3, stride=2, padding=PAD, device=device)
+        self.conv_2_0 = ConvLayer3D(in_ch, base_filt*4, kernel=3, stride=2, padding=PAD, device=device)
+        self.conv_3_0 = ConvLayer3D(in_ch, base_filt*8, kernel=3, stride=2, padding=PAD, device=device)
 
-    # (self.feed('data')
-    # .conv_bn(3, base_filter, 1, center=True, scale=True, name='3dconv0_1'))    #32 in channels, 8 out channels
+        self.conv_1_1 = ConvLayer3D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device) # input conv 1_0
+        self.conv_2_1 = ConvLayer3D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, device=device) # input conv 2_0
+        self.conv_3_1 = ConvLayer3D(base_filt*8, base_filt*8, kernel=3, stride=1, padding=1, device=device) # input conv 3_0
 
-    # (self.feed('3dconv1_0')
-    # .conv_bn(3, base_filter * 2, 1, center=True, scale=True, name='3dconv1_1'))#16 in channels 16 out channels
+        self.deconv_3_0 = DeConvLayer3D(base_filt*8, base_filt*4, kernel=3, stride=2, padding=PAD, output_padding=OUTPAD, device=device) # input conv 3_1
+        self.deconv_2_0 = DeConvLayer3D(base_filt*4, base_filt*2, kernel=3, stride=2, padding=PAD, output_padding=OUTPAD, device=device) # input deconv 3_0, conv 2_1
+        self.deconv_1_0 = DeConvLayer3D(base_filt*2, base_filt*1, kernel=3, stride=2, padding=PAD, output_padding=OUTPAD, device=device) # input deconv 2_0, conv 1_1
 
-    # (self.feed('3dconv2_0')
-    # .conv_bn(3, base_filter * 4, 1, center=True, scale=True, name='3dconv2_1'))#32 in channels, 32 out channels
-
-    # (self.feed('3dconv3_0')
-    # .conv_bn(3, base_filter * 8, 1, center=True, scale=True, name='3dconv3_1') #64 in channels, 64 out channels
-    # .deconv_bn(3, base_filter * 4, 2, center=True, scale=True, name='3dconv4_0'))#64 in channels, 32 out channels, stride 2
-
-    # (self.feed('3dconv4_0', '3dconv2_1')
-    # .add(name='3dconv4_1')
-    # .deconv_bn(3, base_filter * 2, 2, center=True, scale=True, name='3dconv5_0'))#32 in channels, 16 out channels, stride 2
-
-    # (self.feed('3dconv5_0', '3dconv1_1')
-    # .add(name='3dconv5_1')
-    # .deconv_bn(3, base_filter, 2, center=True, scale=True, name='3dconv6_0'))  #16 in channels, 8 out channels, stride 2
-
-    # (self.feed('3dconv6_0', '3dconv0_1')
-    # .add(name='3dconv6_1')
-    # .conv(3, 1, 1, biased=False, relu=False, name='3dconv6_2')) #8 in channels, 1 out channel, stride 1
-
-        # self.conv_0_0 = ConvLayer3D(in_ch, base_filt*1, kernel=3, stride=1) # input data
-        # self.conv_1_0 = ConvLayer3D(in_ch, base_filt*2, kernel=3, stride=2)
-        # self.conv_2_0 = ConvLayer3D(in_ch, base_filt*4, kernel=3, stride=2)
-        # self.conv_3_0 = ConvLayer3D(in_ch, base_filt*8, kernel=3, stride=2)
-
-        # self.conv_1_1 = ConvLayer3D(base_filt*2, base_filt*2, kernel=3, stride=1) # input conv 1_0
-        # self.conv_2_1 = ConvLayer3D(base_filt*4, base_filt*4, kernel=3, stride=1) # input conv 2_0
-        # self.conv_3_1 = ConvLayer3D(base_filt*8, base_filt*8, kernel=3, stride=1) # input conv 3_0
-
-        # self.deconv_3_0 = DeConvLayer3D(base_filt*8, base_filt*4, kernel=3, stride=2) # input conv 3_0
-        # self.deconv_2_0 = DeConvLayer3D(base_filt*4, base_filt*2, kernel=3, stride=2) # input deconv 3_0, conv 2_1
-        # self.deconv_1_0 = DeConvLayer3D(base_filt*2, base_filt*1, kernel=3, stride=2) # input deconv 2_0, conv 1_1
-
-        # self.conv_out = ConvLayer3D(base_filt*1, 1, kernel=3, stride=1) # input deconv 1_0, conv 0_1
-
-        # self.ReLU = ReLULayer()
-        # self.BN_0 = BNLayer(base_filt*1)
-        # self.BN_1 = BNLayer(base_filt*2)
-        # self.BN_2 = BNLayer(base_filt*4)
-        # self.BN_3 = BNLayer(base_filt*8)
-
-        self.conv_0_0 = ConvLayer2D(in_ch, base_filt*1, kernel=3, stride=1, padding=1      , device=device) # input data
-        self.conv_1_0 = ConvLayer2D(in_ch, base_filt*2, kernel=3, stride=2, padding=(65,81), device=device)
-        self.conv_2_0 = ConvLayer2D(in_ch, base_filt*4, kernel=3, stride=2, padding=(65,81), device=device)
-        self.conv_3_0 = ConvLayer2D(in_ch, base_filt*8, kernel=3, stride=2, padding=(65,81), device=device)
-
-        self.conv_1_1 = ConvLayer2D(base_filt*2, base_filt*2, kernel=3, stride=1, padding=1, device=device) # input conv 1_0
-        self.conv_2_1 = ConvLayer2D(base_filt*4, base_filt*4, kernel=3, stride=1, padding=1, device=device) # input conv 2_0
-        self.conv_3_1 = ConvLayer2D(base_filt*8, base_filt*8, kernel=3, stride=1, padding=1, device=device) # input conv 3_0
-
-        self.deconv_3_0 = DeConvLayer2D(base_filt*8, base_filt*4, kernel=3, stride=2, padding=(65,81), output_padding=1, device=device) # input conv 3_1
-        self.deconv_2_0 = DeConvLayer2D(base_filt*4, base_filt*2, kernel=3, stride=2, padding=(65,81), output_padding=1, device=device) # input deconv 3_0, conv 2_1
-        self.deconv_1_0 = DeConvLayer2D(base_filt*2, base_filt*1, kernel=3, stride=2, padding=(65,81), output_padding=1, device=device) # input deconv 2_0, conv 1_1
-
-        self.conv_out = ConvLayer2D(base_filt*1, 1, kernel=3, stride=1, padding=1, device=device) # input deconv 1_0, conv 0_1
+        self.conv_out = ConvLayer3D(base_filt*1, 1, kernel=3, stride=1, padding=1, bias=False, device=device) # input deconv 1_0, conv 0_1
 
         self.ReLU = ReLULayer()
-        self.BN_0 = BNLayer(base_filt*1)
-        self.BN_1 = BNLayer(base_filt*2)
-        self.BN_2 = BNLayer(base_filt*4)
-        self.BN_3 = BNLayer(base_filt*8)
+        self.BN_0 = BNLayer3D(base_filt*1)
+        self.BN_1 = BNLayer3D(base_filt*2)
+        self.BN_2 = BNLayer3D(base_filt*4)
+        self.BN_3 = BNLayer3D(base_filt*8)
+        self.Norm = torch.nn.Softmax(2) # normalize depth dimension
 
     def forward(self, cv):
         y0 = self.ReLU(self.BN_0(self.conv_0_0(cv))) # in 32, out 8
@@ -173,7 +108,7 @@ class CostVolumeReg(nn.Module):
         # print("y2: ",y2.size())
         y1 = self.ReLU(self.BN_0(self.deconv_1_0(torch.add(y2, y1)))) # in 16, out 8
         # print("y1: ",y1.size())
-        y  = self.conv_out(torch.add(y1, y0)) # in 8, out 1
+        y  = self.Norm(self.conv_out(torch.add(y1, y0))) # in 8, out 1
         # print("y : ",y.size())
 
         return y
@@ -181,7 +116,7 @@ class CostVolumeReg(nn.Module):
 
 class DepthRefinement(nn.Module):
 
-    def __init__(self, in_ch=4, base_filt=32, device=None):
+    def __init__(self, in_ch=4, base_filt=32, device=DEVICE):
         super(DepthRefinement, self).__init__()
 
         # .conv_bn(3, 32, 1, name='refine_conv0')
@@ -201,7 +136,6 @@ class DepthRefinement(nn.Module):
             BNLayer(base_filt), ReLULayer(),
 
             ConvLayer2D(base_filt, 1        , kernel=3, stride=1, padding=1, device=device)
-
         )
 
     def forward(self, depth_and_input):
@@ -225,28 +159,47 @@ class MVSNet(nn.Module):
     def forward(self, nn_input, K_batch, R_batch, T_batch, d_min, 
                     d_int, batch_size, n_views):
 
-        # TODO: BE SURE TO USE ONLY TORCH OPERATIONS TO ENSURE DIFFERENTIABILITY
+        # USE ONLY TORCH OPERATIONS TO ENSURE DIFFERENTIABILITY
 
         feature_maps = self.feature_encoder(nn_input) # out: b, 32 , h , w
 
-        print("Batch ##:Feature Network Output Size ", feature_maps.size())
+        # print("Feature Map Computed with Shape ", feature_maps.size())
+        # print_gpu_memory()
 
-        warped_feature_maps = homography_warping(K_batch, R_batch, T_batch, 
+        warped_feature_maps, d_batch, ref_views = homography_warping(K_batch, R_batch, T_batch, 
                                 d_min, d_int, feature_maps, batch_size, n_views)
 
-        raise Exception("Stop Here")
+        # print("Feature Volumes Computed with Shape ", warped_feature_maps.size())
+        # print_gpu_memory()
 
-        cost_volume = assemble_cost_volume(warped_feature_maps)
+        cost_volume = assemble_cost_volume(warped_feature_maps, n_views)
+
+        # print("Cost Volumes Computed with Shape ", cost_volume.size())
+        # print_gpu_memory()
 
         prob_volume = self.cost_volume_reg(cost_volume)
 
-        initial_depth_map = extract_depth_map(prob_volume)
+        # print("Probability Volumes Computed with Shape ", prob_volume.size())
+        # print_gpu_memory()
+
+        initial_depth_map = extract_depth_map(prob_volume, d_batch)
+
+        # print("Initial Depth Map Computed with Shape ", initial_depth_map.size())
+        # print_gpu_memory()
 
         # Don't forget to scale the depth values before refining
+        tran_depth_map = torch.subtract(initial_depth_map, d_min.to(DEVICE))
+        norm_depth_map = torch.div(torch.div(tran_depth_map, d_int.to(DEVICE)), D_NUM)
 
-        refine_input = torch.cat((initial_depth_map, nn_input[0,:,:,:]),dim=1)
+        _, _, h, w = norm_depth_map.size()
 
-        refined_depth_map = self.depthmap_refine(refine_input)
+        # reshape input images and concatenate with depth map
+        refine_input = torch.cat((norm_depth_map, f.interpolate(nn_input[ref_views], (h, w),mode='bilinear')), dim=1)
+
+        refined_depth_map = self.depthmap_refine(refine_input) + norm_depth_map
+
+        # print("Refined Depth Map Computed with Shape ", refined_depth_map.size())
+        # print_gpu_memory()
 
         return initial_depth_map, refined_depth_map
 
@@ -279,7 +232,13 @@ def DeConvLayer3D(in_ch, out_ch, stride=1, kernel=3, device=None,
     
 def BNLayer(in_ch, eps=1e-05, momentum=0.1, device=None):
 
-    return nn.BatchNorm2d(in_ch, eps=eps, momentum=momentum, device=device)
+    return nn.BatchNorm2d(in_ch, eps=eps, momentum=momentum, 
+                            track_running_stats=True, device=device)
+
+def BNLayer3D(in_ch, eps=1e-05, momentum=0.1, device=None):
+
+    return torch.nn.BatchNorm3d(in_ch, eps=eps, momentum=momentum, 
+                                track_running_stats=True, device=device)
 
 def ReLULayer():
     return nn.ReLU()

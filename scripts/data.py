@@ -3,7 +3,7 @@ from torch.utils.data.dataloader import Sampler
 from torchvision import transforms
 import torch
 
-from cv2 import flip
+from cv2 import flip, threshold, THRESH_TOZERO, THRESH_TOZERO_INV
 from PIL import Image
 from os.path import join
 from itertools import product
@@ -13,6 +13,7 @@ from utils import unsqueeze_n as unsqz
 import numpy as np  
 import re
 import random
+from matplotlib import cm
 
 class Cameras():
     """Class for handling camera parameters."""
@@ -131,7 +132,7 @@ class Depths():
                     data_string = f.read()
                     data = np.frombuffer(data_string, data_type)
                     data = np.reshape(data, (height, width, ch_dim))
-                    data = flip(data,0)
+                    data = flip(data, 0)
                     img_temp.append(data)
             self.img.append(img_temp)
 
@@ -282,10 +283,19 @@ class DtuTrainDataset(Dataset):
             next_view = torch.unsqueeze(self.img_xform(Image.open(
                         sample['img_filenames'][i]).convert('RGB')), 0)
             input_img = torch.cat((input_img, next_view), dim=0)
+
+        depth_img = load_depth(sample['depth_filename'])
+        ret, depth_img = threshold(depth_img, 0   , 100000, THRESH_TOZERO)
+        ret, depth_img = threshold(depth_img, 5000, 100000, THRESH_TOZERO_INV)
+        # depth_img = depth_img-depth_img.min()
+        # depth_img = depth_img/depth_img.max()
+        # depth_img = Image.fromarray(np.uint8((depth_img)*255))
+        # input_img = Image.open(sample['img_filenames'][0]).convert('RGB')
+        # depth_img.show()
+        # input_img.show()
          
         sample['input_img'] = input_img
-        sample['depth_ref'] = unsqz(self.npy_xform(
-                                load_depth(sample['depth_filename'])), 2)
+        sample['depth_ref'] = unsqz(self.npy_xform(depth_img), 2)
 
         return sample
     
@@ -317,7 +327,7 @@ def load_depth(depth_filename):
         data_string = f.read()
         data = np.frombuffer(data_string, data_type)
         data = np.reshape(data, (height, width, ch_dim))
-        data = flip(data,0)
+        data = flip(data, 0)
     return data
 
 def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
@@ -336,7 +346,8 @@ def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
     dtu_dataloader  = DataLoader(dataset=dtu_dataset, 
                                  batch_size=batch_size, 
                                 #  sampler=sampler, 
-                                 shuffle=shuffle)
+                                 shuffle=shuffle,
+                                 pin_memory=True)
 
     print("\nDataloader Finished.")
     print("    Batch Size: {:d}".format(batch_size))
@@ -462,7 +473,7 @@ if __name__ == '__main__':
         elif case == 'test':
             scan_idx = np.array([1,2])
             file_name = 'test_dataloader'
-            batch_size = 14
+            batch_size = 2
 
         dtu_train_dataloader = get_dtu_loader(path, 
                                               cam_idx, 

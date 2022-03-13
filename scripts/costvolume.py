@@ -1,33 +1,27 @@
 import torch
 
-def assemble_cost_volume(warped_feature_maps, n_views):
+def assemble_cost_volume(warped_feature_maps:torch.Tensor, n_views:int):
     """Assemble the cost volume using a variance-based cost metric. There is
-    ambiguity in the MVS paper whether the mean is obtained over all 32 
-    feature volume channels or if it is per channel. The implementation here is 
-    per channel."""
-    b, c, w, h = warped_feature_maps.size()
-    ref_idx    = np.arange(0,b*n_views,n_views)
+    ambiguity in the MVS paper about the mean feature volume, in this case
+    it is taken as a sum in the n_view dimension divided by n_views."""
+    bn, c, d, h, w = warped_feature_maps.size()
 
-    N = w * h * b # number of pixels for averaging
+    # separate the views of each batch: new shape <b, n_views, c, d, h, w>
+    warped_feature_maps = warped_feature_maps.reshape((int(bn/n_views), n_views, c, d, h, w))
 
-    print(N)
+    mean_feature_map = (warped_feature_maps.sum(1) / n_views).unsqueeze(1)
 
-    mean = torch.sum(warped_feature_maps, (0, 2, 3)) / (N)
+    cost_volume = (warped_feature_maps - mean_feature_map).pow(2).sum(1) / n_views
 
-    print(torch.reshape(mean, (1, c, 1, 1)).size())
-    print(warped_feature_maps.size())
-
-    diff = warped_feature_maps - torch.reshape(mean, (1, c, 1, 1))
-
-    var = torch.sum(diff**2, [2,3]) / N
-
-    return var
+    return cost_volume
 
 if __name__ == "__main__":
 
-    input = torch.randn(9,32,1000,1000)
+    """Test cost volume computation"""
+
+    input = torch.randn(9, 32, 5, 128, 160).to("cuda:0")
     n_views = 3
 
-    var = assemble_cost_volume(input, n_views)
+    cost_volume = assemble_cost_volume(input, n_views)
 
-    print(var)
+    # print(var)
