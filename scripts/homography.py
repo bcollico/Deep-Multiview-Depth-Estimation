@@ -98,3 +98,4 @@ def homography_warping(K_batch:torch.Tensor,
     # warped_feature_maps_new_dim = warped_feature_maps.transpose(0,1).transpose(1,2)
 
     return warped_feature_maps, d_batch_0, ref_idx_0
+

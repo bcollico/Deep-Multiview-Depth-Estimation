@@ -14,7 +14,7 @@ from config import DEVICE
 def train(epochs:int, 
           train_data_loader:DataLoader,
           lr:float=0.001,
-          save_path:str='.\\checkpoints',
+          save_path:str=join('.','checkpoints'),
           checkpoint:str=None,
           model:torch.nn.Module=None,
           start_epoch:int=0):
@@ -37,9 +37,9 @@ def train(epochs:int,
             print('Initializing Model...')
             model, optimizer, start_epoch = init_training_model(epochs, lr)
 
-            epoch_loss = np.zeros([])
-            epoch_initial_acc = np.zeros([])
-            epoch_refined_acc = np.zeros([])
+            epoch_loss = np.zeros(epochs)
+            epoch_initial_acc = np.zeros(epochs)
+            epoch_refined_acc = np.zeros(epochs)
 
     print('Start Training From Epoch #{:d}'.format(start_epoch))
 
@@ -56,9 +56,6 @@ def train(epochs:int,
             # with torch.no_grad():
             print("----- TRAINING EPOCH #{:d} -----".format(epoch+1+start_epoch))
 
-            append_zero(epoch_loss)
-            append_zero(epoch_initial_acc)
-            append_zero(epoch_refined_acc)
 
             model.train()
             epoch_start_time = time.time()
@@ -93,9 +90,9 @@ def train(epochs:int,
                 loss, initial_acc, refined_acc = loss_fcn(gt_depth, 
                                            initial_depth_map, refined_depth_map)
 
-                if epoch > 0:
-                    loss.backward()
-                    optimizer.step()
+                # if epoch > 0:
+                loss.backward()
+                optimizer.step()
 
                 # store statistics of current item in batch
                 batch_loss[batch_idx] = float(loss.mean())
@@ -104,7 +101,7 @@ def train(epochs:int,
                 
                 current_time = time.time()
                 
-                if batch_idx % 20 == 0:
+                if (batch_idx+1) % 14 == 0:
                     print(
                         "Epoch: #{:d} Batch: {:d}/{:d}  Time: {:g}\t"
                         "Loss(curr/avg) {:.4f}/{:.4f}\t"
@@ -128,7 +125,7 @@ def train(epochs:int,
             epoch_initial_acc[epoch] = np.mean(batch_initial_acc)
             epoch_refined_acc[epoch] = np.mean(batch_refined_acc)
 
-            if (epoch) % 10 == 0:
+            if (epoch) % 14 == 0:
                 torch.save({
                             'epoch': epoch,
                             'model_state_dict': model.state_dict(),
@@ -139,6 +136,7 @@ def train(epochs:int,
                             }, join(save_path, id_str+"_"+str(epoch)))
         pbar.update(1)
 
+    return model, epoch_loss, epoch_initial_acc, epoch_refined_acc
 
 def init_training_model(epochs=10, lr=0.001):
     model = MVSNet()
@@ -170,4 +168,4 @@ if __name__ =="__main__":
     # really strange behavior, need to include the dataset class
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
-    train(epochs=100, train_data_loader="test_dataloader")
+    model, loss, acc_1, acc_2, = train(epochs=100, train_data_loader="test_dataloader")

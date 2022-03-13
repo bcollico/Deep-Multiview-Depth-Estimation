@@ -205,26 +205,26 @@ class MVSNet(nn.Module):
 
 
 def ConvLayer2D(in_ch, out_ch, stride=1, kernel=3, device=None, 
-                padding=0, padmode='zeros', bias=True):
+                padding=0, padmode='zeros', bias=False):
 
     return nn.Conv2d(in_ch, out_ch, kernel, stride=stride,
         padding=padding, padding_mode=padmode, bias=False, device=device)
 
 def DeConvLayer2D(in_ch, out_ch, stride=1, kernel=3, device=None, 
-                padding=0, output_padding=0, padmode='zeros', bias=True):
+                padding=0, output_padding=0, padmode='zeros', bias=False):
 
     return nn.ConvTranspose2d(in_ch, out_ch, kernel, stride=stride,
         padding=padding, output_padding=output_padding, padding_mode=padmode, 
         bias=bias, device=device)
 
 def ConvLayer3D(in_ch, out_ch, stride=1, kernel=3, device=None, 
-                padding=0, padmode='zeros', bias=True):
+                padding=0, padmode='zeros', bias=False):
 
     return nn.Conv3d(in_ch, out_ch, kernel, stride=stride,
         padding=padding, padding_mode=padmode, bias=bias, device=device)
 
 def DeConvLayer3D(in_ch, out_ch, stride=1, kernel=3, device=None, 
-                padding=0, output_padding=0, padmode='zeros', bias=True):
+                padding=0, output_padding=0, padmode='zeros', bias=False):
 
     return nn.ConvTranspose3d(in_ch, out_ch, kernel, stride=stride,
         padding=padding, output_padding=output_padding, padding_mode=padmode, 

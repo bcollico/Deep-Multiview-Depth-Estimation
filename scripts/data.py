@@ -286,7 +286,7 @@ class DtuTrainDataset(Dataset):
 
         depth_img = load_depth(sample['depth_filename'])
         ret, depth_img = threshold(depth_img, 0   , 100000, THRESH_TOZERO)
-        ret, depth_img = threshold(depth_img, 5000, 100000, THRESH_TOZERO_INV)
+        ret, depth_img = threshold(depth_img, 1000, 100000, THRESH_TOZERO_INV)
         # depth_img = depth_img-depth_img.min()
         # depth_img = depth_img/depth_img.max()
         # depth_img = Image.fromarray(np.uint8((depth_img)*255))
@@ -438,7 +438,7 @@ if __name__ == '__main__':
     MVS paper."""
 
     # 'test', 'training', 'evaluation', 'validation'
-    cases = ['test', 'training', 'validation', 'evaluation']
+    cases = ['test']
 
     random.seed(401)
     path = '../data/mvs_training/dtu'
@@ -473,7 +473,7 @@ if __name__ == '__main__':
         elif case == 'test':
             scan_idx = np.array([1,2])
             file_name = 'test_dataloader'
-            batch_size = 2
+            batch_size = 1
 
         dtu_train_dataloader = get_dtu_loader(path, 
                                               cam_idx, 
