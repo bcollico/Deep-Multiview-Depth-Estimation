@@ -1,7 +1,9 @@
 import time
+from os.path import join
 import numpy as np
 import torch
 import torch.nn.functional as f
+from torch.utils.data import DataLoader
 from loss import loss_fcn
 from utils import *
 from model import *
@@ -9,13 +11,13 @@ from tqdm import tqdm
 from config import DEVICE
 
 
-def train(epochs, 
-          train_data_loader,
-          lr=0.001,
-          save_path='/checkpoints',
-          checkpoint=None,
-          model=None,
-          start_epoch=0):
+def train(epochs:int, 
+          train_data_loader:DataLoader,
+          lr:float=0.001,
+          save_path:str='.\\checkpoints',
+          checkpoint:str=None,
+          model:torch.nn.Module=None,
+          start_epoch:int=0):
 
     if isinstance(train_data_loader, str):
         train_data_loader = torch.load(train_data_loader)
@@ -28,10 +30,16 @@ def train(epochs,
     else:
         if checkpoint is not None:
             print('Loading Checkpoint...')
-            model, optimizer, start_epoch = load_from_ckpt(checkpoint, epochs)
+            out = load_from_ckpt(checkpoint, epochs)
+            model, optimizer, start_epoch, \
+                epoch_loss, epoch_initial_acc, epoch_refined_acc = out
         else:
             print('Initializing Model...')
             model, optimizer, start_epoch = init_training_model(epochs, lr)
+
+            epoch_loss = np.zeros([])
+            epoch_initial_acc = np.zeros([])
+            epoch_refined_acc = np.zeros([])
 
     print('Start Training From Epoch #{:d}'.format(start_epoch))
 
@@ -40,16 +48,13 @@ def train(epochs,
     model = model.to(DEVICE)
     # print_gpu_memory()
 
-    # average statistics for each epoch in range(epochs)
-    epoch_loss        = np.array([])
-    epoch_initial_acc = np.array([])
-    epoch_refined_acc = np.array([])
+    id_str = str(int(time.time()))
 
     total = epochs
     with tqdm(total=total) as pbar:
         for epoch in range(start_epoch, epochs):
             # with torch.no_grad():
-            print("----- TRAINING EPOCH #{:d} -----".format(epoch))
+            print("----- TRAINING EPOCH #{:d} -----".format(epoch+1+start_epoch))
 
             append_zero(epoch_loss)
             append_zero(epoch_initial_acc)
@@ -59,21 +64,16 @@ def train(epochs,
             epoch_start_time = time.time()
             current_time     = time.time()
 
+            batch_loss        = np.zeros(num_trainloader)
+            batch_initial_acc = np.zeros(num_trainloader)
+            batch_refined_acc = np.zeros(num_trainloader)
+
+
             for batch_idx, batch in enumerate(train_data_loader):
 
                 batch_size, n_views, ch, h, w = batch['input_img'].size()
                 _         , _      , _ ,dh,dw = batch['depth_ref'].size()
-
-                if batch_idx == 0:
-                    # statistics for each element in this batch
-                    batch_loss        = np.zeros(batch_size)
-                    batch_initial_acc = np.zeros(batch_size)
-                    batch_refined_acc = np.zeros(batch_size)
-
-                append_zero(batch_loss)
-                append_zero(batch_initial_acc)
-                append_zero(batch_refined_acc)
-
+                    
                 optimizer.zero_grad()
             
                 nn_input= torch.reshape(batch['input_img'], (batch_size*n_views, ch, h, w)).to(DEVICE) # b*n, ch, h, w
@@ -115,23 +115,28 @@ def train(epochs,
                                 num_trainloader, 
                                 current_time - epoch_start_time,
                                 batch_loss[batch_idx],
-                                np.mean(batch_loss[:batch_idx]),
+                                np.mean(batch_loss[:(batch_idx+1)]),
                                 batch_initial_acc[batch_idx], 
-                                np.mean(batch_initial_acc[:batch_idx]),
+                                np.mean(batch_initial_acc[:(batch_idx+1)]),
                                 batch_refined_acc[batch_idx], 
-                                np.mean(batch_refined_acc[:batch_idx])
+                                np.mean(batch_refined_acc[:(batch_idx+1)])
                                 )
                         )
 
-            # add average stats for the most recent batch
-            epoch_loss[-1]        += np.mean(batch_loss)
-            epoch_initial_acc[-1] += np.mean(batch_initial_acc)
-            epoch_refined_acc[-1] += np.mean(batch_refined_acc)
-
             # compute average stats for epoch
-            epoch_loss[-1]        /= num_trainloader
-            epoch_initial_acc[-1] /= num_trainloader
-            epoch_refined_acc[-1] /= num_trainloader
+            epoch_loss[epoch]        = np.mean(batch_loss)
+            epoch_initial_acc[epoch] = np.mean(batch_initial_acc)
+            epoch_refined_acc[epoch] = np.mean(batch_refined_acc)
+
+            if (epoch) % 10 == 0:
+                torch.save({
+                            'epoch': epoch,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'loss': epoch_loss,
+                            'acc_1': epoch_initial_acc,
+                            'acc_2': epoch_refined_acc,
+                            }, join(save_path, id_str+"_"+str(epoch)))
         pbar.update(1)
 
 
@@ -142,24 +147,27 @@ def init_training_model(epochs=10, lr=0.001):
 
     return model, optimizer, start_epoch
 
-def load_from_ckpt(ckpt, model, optimizer, epochs):
+def load_from_ckpt(ckpt, epochs):
 
     model, optimizer, _ = init_training_model(epochs, 0)
 
     checkpoint = torch.load(ckpt)
     ckpt_epoch = epochs - (checkpoint["epoch"]+1)
     if ckpt_epoch <= 0:
-        raise ValueError("Epochs provided: {}, epochs completed in ckpt: {}".format(
+        raise ValueError("Epochs provided: {:d}, epochs completed in ckpt: {:d}".format(
     epochs, checkpoint["epoch"]+1))
 
     model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optim_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    loss  = checkpoint['loss']
+    acc_1 = checkpoint['acc_1']
+    acc_2 = checkpoint['acc_2']
     
-    return model, optimizer, ckpt_epoch
+    return model, optimizer, checkpoint["epoch"], loss, acc_1, acc_2
         
 
 if __name__ =="__main__":
     # really strange behavior, need to include the dataset class
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
-    train(epochs=1, train_data_loader="test_dataloader")
+    train(epochs=100, train_data_loader="test_dataloader")
