@@ -90,7 +90,8 @@ def train(epochs:int,
                 loss, initial_acc, refined_acc = loss_fcn(gt_depth, 
                                            initial_depth_map, refined_depth_map)
 
-                # if epoch > 0:
+                print_gpu_memory()
+
                 loss.backward()
                 optimizer.step()
 
@@ -125,7 +126,7 @@ def train(epochs:int,
             epoch_initial_acc[epoch] = np.mean(batch_initial_acc)
             epoch_refined_acc[epoch] = np.mean(batch_refined_acc)
 
-            if (epoch) % 14 == 0:
+            if (epoch) % 1 == 0:
                 torch.save({
                             'epoch': epoch,
                             'model_state_dict': model.state_dict(),

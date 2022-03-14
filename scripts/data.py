@@ -221,8 +221,8 @@ class DtuTrainDataset(Dataset):
                 ref_pairs = DTU.Cameras.pairs[ref]
                 pair_idx  = random.sample(set(ref_pairs), 2) # 2 random unique
                 light_idx = random.choices(light_idx_choices, k=2) # 2 random
-                pair_idx1 = pair_idx[0] # cam idx start at 0, don't subtract 1
-                pair_idx2 = pair_idx[1]
+                pair_idx1 = ref_pairs[0]#pair_idx[0] # cam idx start at 0, don't subtract 1
+                pair_idx2 = ref_pairs[1]#pair_idx[1]
 
                 # get reference image and two auxilliary views
                 image_ref = DTU.Images.file_names[scan][light_ref][ref]

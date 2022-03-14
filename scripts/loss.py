@@ -18,6 +18,9 @@ def loss_fcn(gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor):
     loss_0 = torch.multiply(mask, initial_diff).sum((1,2,3)).div(p_valid)
     loss_1 = torch.multiply(mask, refined_diff).sum((1,2,3)).div(p_valid)
 
+    print(torch.multiply(mask, refined_diff))
+    print(p_valid, gt.min(), gt.max())
+
     # compute mean absolute error for both depth maps
     loss = (loss_0 + loss_1).sum()
 
