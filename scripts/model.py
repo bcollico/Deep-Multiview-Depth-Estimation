@@ -147,8 +147,8 @@ class DepthRefinement(nn.Module):
     def forward(self, depth_and_input):
         """Input is 4-channel: depth map + input image"""
         norm_depth_residual = self.model(depth_and_input)
-        norm_refined_depth = norm_depth_residual + depth_and_input[0]
-        return self.model(norm_refined_depth)
+        norm_refined_depth = norm_depth_residual + depth_and_input[:,0].unsqueeze(1)
+        return norm_refined_depth
 
 
 class MVSNet(nn.Module):
