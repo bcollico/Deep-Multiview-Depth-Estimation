@@ -3,8 +3,8 @@ from numpy import int64, floor, array
 
 ACC_THRESH = 0.05 # correct depth is within ACC_THESH percent of true depth
 
-D_SCALE = 42.5 # scaling factor for depth interval to control distance between front planes
-D_NUM = 10   # number of planes to warp images into
+D_SCALE = 21.25 # scaling factor for depth interval to control distance between front planes
+D_NUM = 20   # number of planes to warp images into
 
 N_DEPTH_EST = torch.tensor(6) # how many depth estimates to fuse in initial depth map
 

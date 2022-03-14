@@ -1,8 +1,6 @@
 import torch
 import numpy as np
-
-def compute_accuracy():
-    raise NotImplementedError
+import psutil
 
 def append_zero(input):
     input = np.append(input, 0)
@@ -15,7 +13,9 @@ def unsqueeze_n(input, n, dim=0):
         input = torch.unsqueeze(input, dim=0)
     return input
 
-def print_gpu_memory():
+def print_gpu_memory(label=''):
     # torch.cuda.empty_cache()
-    print("GPU Memory {:.3f} MB / 2048 MB".format(
+    print(label+"RAM: {:.1f}mb/{:.1f}mb \t GPU: {:.1f}mb/10500mb".format(
+        psutil.virtual_memory()[3] >> 20,
+        psutil.virtual_memory()[0] >> 20,
         torch.cuda.memory_allocated(0)/1024/1024))

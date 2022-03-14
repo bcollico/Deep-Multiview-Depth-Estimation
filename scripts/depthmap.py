@@ -1,6 +1,5 @@
-from config import D_NUM, D_SCALE, N_DEPTH_EST, DEVICE
+from config import N_DEPTH_EST
 import torch
-import torch.nn.functional as f
 
 def extract_depth_map(prob_volume:torch.Tensor, d_batch:torch.Tensor):
     """Extract the depth via the soft argmax operation. Take the sum of the
@@ -8,9 +7,6 @@ def extract_depth_map(prob_volume:torch.Tensor, d_batch:torch.Tensor):
     
     Input  Shape: <batch_size, 1, D_NUM, h, w>
     Output Shape: <batch_size, 1, h, w>"""
-
-    # print(prob_volume.max())
-    # print(prob_volume.min())
 
     _, prob_mask = prob_volume.sort(2, descending=True)      # sort along depth direction, get indices
     prob_thresh  = torch.less(prob_mask, N_DEPTH_EST).float() # threshold to max number of depths
@@ -22,7 +18,5 @@ def extract_depth_map(prob_volume:torch.Tensor, d_batch:torch.Tensor):
 
     depth_map = (d_batch.unsqueeze(1) * filtered_prob_volume).sum(2).squeeze(2)
 
-    # print(depth_map.max())
-    # print(depth_map.min())
 
     return depth_map

@@ -1,6 +1,5 @@
 import torch
 from kornia.geometry.transform import warp_perspective
-from utils import print_gpu_memory, print_size, unsqueeze_n
 from config import D_SCALE, D_NUM, DEVICE
 import warnings
 
@@ -33,16 +32,15 @@ def homography_warping(K_batch:torch.Tensor,
     # views that need to be repeated <n_views>*<d_num> times 
     ref_idx, _ = torch.sort(torch.tile(ref_idx_0, (1,n_views)))
     ref_idx = ref_idx.squeeze(0)
-    # img_idx   = torch.tile(torch.arange(0, N), d_num) # lazy way -- might need to exclude ref views
     # img_idx = torch.tensor([i for i in torch.arange(0,N) if i not in ref_idx_0])
-    img_idx = torch.arange(0,N)
+    img_idx = torch.arange(0,N) # lazy way -- might need to exclude ref views
 
 
     # identity matrix for contructing homography: shape (1, d, 3, 3)
     I = torch.eye(3).to(DEVICE).unsqueeze(0).unsqueeze(1).expand((-1, d_num, -1, -1))
 
     # get camera parameters for reference views: shape (batch_size*(n_views-1), d, 3, 3)
-    K_ref = K_batch[ref_idx,:,:].to(DEVICE).unsqueeze(1).expand((-1, d_num, -1, -1))  # intrinsic
+    K_ref   = K_batch[ref_idx,:,:].to(DEVICE).unsqueeze(1).expand((-1, d_num, -1, -1))  # intrinsic
     R_ref_0 = R_batch[ref_idx,:,:].to(DEVICE)
     T_ref_0 = T_batch[ref_idx,:,:].to(DEVICE)
 
@@ -51,16 +49,13 @@ def homography_warping(K_batch:torch.Tensor,
     n_ref = R_ref[:, :, :,2].unsqueeze(2) # principle axis of the reference view (b*(n-1) d, 1, 3)
 
     # get camera parameters for other views: shape (batch_size*(n_views-1), d, 3, 3)
-    K_view = K_batch[img_idx,:,:].to(DEVICE).unsqueeze(1).expand((-1, d_num, -1, -1)) # intrinsics
+    K_view   = K_batch[img_idx,:,:].to(DEVICE).unsqueeze(1).expand((-1, d_num, -1, -1)) # intrinsics
     R_view_0 = R_batch[img_idx,:,:].to(DEVICE)
     T_view_0 = T_batch[img_idx,:,:].to(DEVICE)
 
 
     R_view = R_view_0.unsqueeze(1).expand((-1, d_num, -1, -1)) # rotation
     T_view = -torch.matmul(R_view_0.transpose(-2,-1), T_view_0).unsqueeze(1).expand((-1, d_num, -1, -1)) # translation
-
-    # print("Camera Parameters Moved to GPU with Shapes", K_ref.size(), K_view.size())
-    # print_gpu_memory()
     
     # compute pt. {1} of homography eqn. -- on DEVICE
     RK = torch.matmul(K_view, R_view)
@@ -70,37 +65,25 @@ def homography_warping(K_batch:torch.Tensor,
                           torch.inverse(K_ref))
 
     # compute pt. {2} of homography eqn. -- on DEVICE
-    t_diff_0      = torch.sub(T_view, T_ref) #; print(t_diff_0.size())
-    t_dot_n       = torch.matmul(t_diff_0, n_ref) #; print(t_dot_n.size())
-    t_dot_n_div_d = torch.div(t_dot_n, d_batch) #; print(t_dot_n_div_d.size())
-    Tdiff         = torch.sub(I, t_dot_n_div_d) #; print(Tdiff.size())
-
-    # print(T_batch, n_ref)
+    t_diff_0      = torch.sub(T_view, T_ref)
+    t_dot_n       = torch.matmul(t_diff_0, n_ref)
+    t_dot_n_div_d = torch.div(t_dot_n, d_batch) 
+    Tdiff         = torch.sub(I, t_dot_n_div_d) 
 
     ## HOMOGRAPHY = Ki*Ri*(I - (t-ti)/di)*inv(R)*inv(K) = {1} * {2} * {3} ##
     # does not include identity mapping to save on compute
     H_i = torch.matmul(RK, torch.matmul(Tdiff, RK_ref))
 
-    # print(H_i)
-
-    # print("Computed Homographies with Size ", H_i.size())
-    # print_gpu_memory()
-
-    # H_i[ref_idx_0] = I # set ref view homography to identity
-
     # compute homography on feature maps
     w_and_h = tuple(feature_maps.size()[-2:])
-    warped_feature_maps = feature_maps.clone().unsqueeze(2).to(DEVICE).expand((-1,-1,d_num,-1,-1))
+    warped_feature_maps = feature_maps.detach().clone().unsqueeze(2).to(DEVICE).expand((-1,-1,d_num,-1,-1))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        # Kornia.warp_perspective triggers a warning in a pytorch function
+        # during interpolation
         for d in range(d_num):
-            # print(feature_maps[img_idx].size())
-            # print(warped_feature_maps[d, img_idx].size())
-            # print(H_i[d,:,:,:].size())
             warped_feature_maps[img_idx, :, d] = \
                 warp_perspective(feature_maps[img_idx], H_i[:,d,:,:], w_and_h)
-
-    # warped_feature_maps_new_dim = warped_feature_maps.transpose(0,1).transpose(1,2)
 
     return warped_feature_maps, d_batch_0, ref_idx_0
 

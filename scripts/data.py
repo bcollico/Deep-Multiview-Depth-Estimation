@@ -6,6 +6,7 @@ import torch
 from cv2 import flip, threshold, THRESH_TOZERO, THRESH_TOZERO_INV
 from PIL import Image
 from os.path import join
+from os import close
 from itertools import product
 from tqdm import tqdm
 from utils import unsqueeze_n as unsqz
@@ -13,7 +14,6 @@ from utils import unsqueeze_n as unsqz
 import numpy as np  
 import re
 import random
-from matplotlib import cm
 
 class Cameras():
     """Class for handling camera parameters."""
@@ -251,12 +251,12 @@ class DtuTrainDataset(Dataset):
                 K1        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx1]), 1)
                 R1        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx1]), 1)
                 T1        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx1]), 1)
-                d1        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx1]), 1)
+                # d1        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx1]), 1)
 
                 K2        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx2]), 1)
                 R2        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx2]), 1)
                 T2        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx2]), 1)
-                d2        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx2]), 1)
+                # d2        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx2]), 1)
 
                 sample['K'] = torch.cat((Kref, K1, K2),dim=0)
                 sample['R'] = torch.cat((Rref, R1, R2),dim=0)
@@ -285,8 +285,8 @@ class DtuTrainDataset(Dataset):
             input_img = torch.cat((input_img, next_view), dim=0)
 
         depth_img = load_depth(sample['depth_filename'])
-        ret, depth_img = threshold(depth_img, 0   , 100000, THRESH_TOZERO)
-        ret, depth_img = threshold(depth_img, 1000, 100000, THRESH_TOZERO_INV)
+        _, depth_img = threshold(depth_img, 0   , 100000, THRESH_TOZERO)
+        _, depth_img = threshold(depth_img, 1000, 100000, THRESH_TOZERO_INV)
         # depth_img = depth_img-depth_img.min()
         # depth_img = depth_img/depth_img.max()
         # depth_img = Image.fromarray(np.uint8((depth_img)*255))
@@ -300,40 +300,42 @@ class DtuTrainDataset(Dataset):
         return sample
     
 def load_depth(depth_filename):
-    with open(depth_filename, 'rb') as f:
-        # This is largely taken from the source MVSNet repository
-        # included in this repo
-        header = f.readline().decode('UTF-8').rstrip()
+    f = open(depth_filename, 'rb')
+    # This is largely taken from the source MVSNet repository
+    # included in this repo
+    header      = f.readline().decode('UTF-8').rstrip()
+    dim_match   = re.match(r'^(\d+)\s(\d+)\s$', f.readline().decode('UTF-8'))
+    scale       = float((f.readline()).decode('UTF-8').rstrip())
+    data_string = f.read()
 
-        if header == 'PF':
-            ch_dim = 3
-        elif header == 'Pf':
-            ch_dim = 1
-        else:
-            raise Exception("Invalid Header for PFM file.")
-        
-        dim_match = re.match(r'^(\d+)\s(\d+)\s$', f.readline().decode('UTF-8'))
-        if dim_match:
-            width, height = map(int, dim_match.groups())
-        else:
-            raise Exception("PFM header gives no dimensions.")
-        
-        scale = float((f.readline()).decode('UTF-8').rstrip())
-        if scale > 0:
-            data_type = '<f'
-        else:
-            data_type = '>f'
-        
-        data_string = f.read()
-        data = np.frombuffer(data_string, data_type)
-        data = np.reshape(data, (height, width, ch_dim))
-        data = flip(data, 0)
+    close(f.fileno())
+
+    if header == 'PF':
+        ch_dim = 3
+    elif header == 'Pf':
+        ch_dim = 1
+    else:
+        raise Exception("Invalid Header for PFM file.")
+    
+    if dim_match:
+        width, height = map(int, dim_match.groups())
+    else:
+        raise Exception("PFM header gives no dimensions.")
+    
+    if scale > 0:
+        data_type = '<f'
+    else:
+        data_type = '>f'
+    
+    data = np.frombuffer(data_string, data_type)
+    data = np.reshape(data, (height, width, ch_dim))
+    data = flip(data, 0)
     return data
 
 def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
                     batch_size=14, i_start=0):
 
-    if event=='training' or event=='validation':
+    if event=='training' or event=='validation' or event=='test':
         shuffle=True
     else:
         shuffle=False
@@ -342,10 +344,10 @@ def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
     dtu_dataset     = DtuTrainDataset(DTU)
 
     # sampler         = CustomSampler(dtu_dataset, i=i_start, 
-    #                                   batch_size=batch_size)
+    #                                 batch_size=batch_size)
     dtu_dataloader  = DataLoader(dataset=dtu_dataset, 
                                  batch_size=batch_size, 
-                                #  sampler=sampler, 
+                                 #sampler=sampler, 
                                  shuffle=shuffle,
                                  pin_memory=True)
 
@@ -366,7 +368,7 @@ def compute_dtu_mean_and_stddev(path):
         57,  58,  59,  60,  61,  62,  63,  64,  65,  66,  67,  68,  69,
         70,  71,  72,  74,  75,  76,  77,  82,  83,  84,  85,  86,  87,
         88,  89,  90,  91,  92,  93,  94,  95,  96,  97,  98,  99, 100,
-       101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
+        101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
        114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126,
        127, 128
        ])
@@ -441,7 +443,8 @@ if __name__ == '__main__':
     cases = ['test']
 
     random.seed(401)
-    path = '../data/mvs_training/dtu'
+    from os.path import join
+    path = join('..','data','mvs_training','dtu')
 
     # mean, std = compute_dtu_mean_and_stddev(path)
 
@@ -473,7 +476,7 @@ if __name__ == '__main__':
         elif case == 'test':
             scan_idx = np.array([1,2])
             file_name = 'test_dataloader'
-            batch_size = 1
+            batch_size = 6
 
         dtu_train_dataloader = get_dtu_loader(path, 
                                               cam_idx, 
