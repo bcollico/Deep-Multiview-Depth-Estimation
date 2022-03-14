@@ -187,13 +187,18 @@ class DtuTrainDataset(Dataset):
     """PyTorch datset for modified DTU data."""
     def __init__(self, DTU:DtuReader):
 
-        self.samples = [] # List of samples
+        sample_dict = {'img_filenames':None,
+                        'depth_filename':None,
+                        'K':None,
+                        'R':None,
+                        'T':None,
+                        'd':None,
+                        'd_int':None}
 
         mean = torch.tensor([0.3941, 0.3366, 0.2942]) # precomputed
         std  = torch.tensor([0.3387, 0.3264, 0.3185]) # precomputed
 
-
-        # Image transformations, TODO: Get mean and std for normalization
+        # Image transformations
         self.img_xform = transforms.Compose([
             transforms.PILToTensor(),
             transforms.ConvertImageDtype(torch.float),
@@ -203,99 +208,119 @@ class DtuTrainDataset(Dataset):
         # Transformation to torch.float32
         self.npy_xform = torch.FloatTensor
 
-        self.scan_idx = DTU.scan_idx # list of scans to include in dataset
-        scan_idx      = self.scan_idx
+        # self.scan_idx = DTU.scan_idx # list of scans to include in dataset
+        # scan_idx      = DTU.scan_idx
 
-        ref_cam_idx       = DTU.cam_idx
-        light_idx_choices = np.arange(7) # choose from all lighting angles
+        # ref_cam_idx       = DTU.cam_idx
+        # light_idx_choices = np.arange(7) # choose from all lighting angles
 
-        sample_iter = product(np.arange(len(scan_idx)),    # scan     indexing
-                              light_idx_choices,           # lighting indexing
-                              np.arange(len(ref_cam_idx))) # cam      indexing
+        n_scans = len(DTU.scan_idx)
+        n_camms = len(DTU.cam_idx)
+        n_lghts = 7
+
+        sample_iter = product(np.arange(n_scans),    # scan     indexing
+                              np.arange(n_lghts),    # lighting indexing
+                              np.arange(n_camms)     # cam      indexing
+                              ) 
 
         # total samples (for tqdm)
-        total = len(scan_idx)*len(ref_cam_idx)*len(light_idx_choices) 
-        with tqdm(total=total) as pbar:
-            for (scan, light_ref, ref) in sample_iter:
+        total = n_scans*n_camms*n_lghts
 
-                ref_pairs = DTU.Cameras.pairs[ref]
-                pair_idx  = random.sample(set(ref_pairs), 2) # 2 random unique
-                light_idx = random.choices(light_idx_choices, k=2) # 2 random
-                pair_idx1 = ref_pairs[0]#pair_idx[0] # cam idx start at 0, don't subtract 1
-                pair_idx2 = ref_pairs[1]#pair_idx[1]
+        self.samples = [sample_dict.copy() for _ in range(total)] # List of samples
+        s_idx = 0
+        # with tqdm(total=total) as pbar:
+        for (scan, light_ref, ref) in sample_iter:
 
-                # get reference image and two auxilliary views
-                image_ref = DTU.Images.file_names[scan][light_ref][ref]
-                image_one = DTU.Images.file_names[scan][light_idx[0]][pair_idx1]
-                image_two = DTU.Images.file_names[scan][light_idx[1]][pair_idx2]
+            # ref_pairs = DTU.Cameras.pairs[ref]
+            # pair_idx  = random.sample(set(ref_pairs), 2) # 2 random unique
+            # light_idx = random.choices(light_idx_choices, k=2) # 2 random
+            pair_idx1 = DTU.Cameras.pairs[ref][0]#pair_idx[0] # cam idx start at 0, don't subtract 1
+            pair_idx2 = DTU.Cameras.pairs[ref][1]#pair_idx[1]
 
-                sample = dict()
+            # get reference image and two auxilliary views
+            image_ref = DTU.Images.file_names[scan][light_ref][ref]
+            image_one = DTU.Images.file_names[scan][light_ref][pair_idx1]
+            image_two = DTU.Images.file_names[scan][light_ref][pair_idx2]
 
-                # store image and depth map file names
-                sample['img_filenames']  = [image_ref, image_one, image_two]
-                sample['depth_filename'] = DTU.Depths.file_names[scan][ref]
+            # store image and depth map file names
+            self.samples[s_idx]['img_filenames']  = [image_ref, image_one, image_two]
+            self.samples[s_idx]['depth_filename'] = DTU.Depths.file_names[scan][ref]
 
-                # store pertinent sample information
-                sample['scan_idx']  = self.scan_idx[scan]
-                sample['ref_idx']   = ref_cam_idx[ref]
-                sample['pair_idx']  = pair_idx
-                sample['light_idx'] = np.concatenate((np.array([light_ref]), 
-                                                        light_idx))
-                
-                Kref      = unsqz(self.npy_xform(DTU.Cameras.K[ref]), 1)
-                Rref      = unsqz(self.npy_xform(DTU.Cameras.R[ref]), 1)
-                Tref      = unsqz(self.npy_xform(DTU.Cameras.T[ref]), 1)
-                dref      = unsqz(self.npy_xform(DTU.Cameras.d[ref]), 1)
-                dint      = unsqz(self.npy_xform(DTU.Cameras.d_int[ref]), 1)
+            # store pertinent sample information
+            # sample['scan_idx']  = self.scan_idx[scan]
+            # sample['ref_idx']   = ref_cam_idx[ref]
+            # sample['pair_idx']  = pair_idx
+            # sample['light_idx'] = np.concatenate((np.array([light_ref]), 
+                                                    # light_idx))
+            
+            Kref      = unsqz(self.npy_xform(DTU.Cameras.K[ref]), 1)
+            Rref      = unsqz(self.npy_xform(DTU.Cameras.R[ref]), 1)
+            Tref      = unsqz(self.npy_xform(DTU.Cameras.T[ref]), 1)
+            dref      = unsqz(self.npy_xform(DTU.Cameras.d[ref]), 1)
+            dint      = unsqz(self.npy_xform(DTU.Cameras.d_int[ref]), 1)
 
-                K1        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx1]), 1)
-                R1        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx1]), 1)
-                T1        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx1]), 1)
-                # d1        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx1]), 1)
+            K1        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx1]), 1)
+            R1        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx1]), 1)
+            T1        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx1]), 1)
+            # d1        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx1]), 1)
 
-                K2        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx2]), 1)
-                R2        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx2]), 1)
-                T2        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx2]), 1)
-                # d2        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx2]), 1)
+            K2        = unsqz(self.npy_xform(DTU.Cameras.K[pair_idx2]), 1)
+            R2        = unsqz(self.npy_xform(DTU.Cameras.R[pair_idx2]), 1)
+            T2        = unsqz(self.npy_xform(DTU.Cameras.T[pair_idx2]), 1)
+            # d2        = unsqz(self.npy_xform(DTU.Cameras.d[pair_idx2]), 1)
 
-                sample['K'] = torch.cat((Kref, K1, K2),dim=0)
-                sample['R'] = torch.cat((Rref, R1, R2),dim=0)
-                sample['T'] = torch.cat((Tref, T1, T2),dim=0)
-                sample['d'] = dref
-                sample['d_int'] = dint
+            self.samples[s_idx]['K'] = torch.cat((Kref, K1, K2),dim=0)
+            self.samples[s_idx]['R'] = torch.cat((Rref, R1, R2),dim=0)
+            self.samples[s_idx]['T'] = torch.cat((Tref, T1, T2),dim=0)
+            self.samples[s_idx]['d'] = dref
+            self.samples[s_idx]['d_int'] = dint
 
-                self.samples.append(sample)
+            s_idx += 1
 
-                pbar.update(1)
+                # pbar.update(1)
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
+        # It took me 2-3 hours of debugging to find a CPU memory leak that was
+        # occuring across each batch. I had originally written
+        #    sample = self.samples[idx]
+        #    ...
+        #    sample['input_img'] = input_img
+        #    sample['depth_ref'] = unsqz(self.npy_xform(depth_img), 2)
+        #
+        # Reusing the dictionary in this way was causing runaway memory
+        # consumption. See the fix below.
 
-        sample = self.samples[idx]
+        sample_i = self.samples[idx]
+        sample = {'input_img':None,
+                'depth_ref':None,
+                'K':None,
+                'R':None,
+                'T':None,
+                'd':None,
+                'd_int':None}
 
         # reference view
         input_img = torch.unsqueeze(self.img_xform(Image.open(
-                        sample['img_filenames'][0]).convert('RGB')), 0)
+                        sample_i['img_filenames'][0]).convert('RGB')), 0)
 
-        for i in range(1,len(sample['img_filenames'])):
-            next_view = torch.unsqueeze(self.img_xform(Image.open(
-                        sample['img_filenames'][i]).convert('RGB')), 0)
+        for i in range(1,len(sample_i['img_filenames'])):
+            next_view = torch.unsqueeze(self.img_xform(Image.open(sample_i['img_filenames'][i]).convert('RGB')), 0)
             input_img = torch.cat((input_img, next_view), dim=0)
 
-        depth_img = load_depth(sample['depth_filename'])
+        depth_img    = load_depth(sample_i['depth_filename'])
         _, depth_img = threshold(depth_img, 0   , 100000, THRESH_TOZERO)
         _, depth_img = threshold(depth_img, 1000, 100000, THRESH_TOZERO_INV)
-        # depth_img = depth_img-depth_img.min()
-        # depth_img = depth_img/depth_img.max()
-        # depth_img = Image.fromarray(np.uint8((depth_img)*255))
-        # input_img = Image.open(sample['img_filenames'][0]).convert('RGB')
-        # depth_img.show()
-        # input_img.show()
          
         sample['input_img'] = input_img
         sample['depth_ref'] = unsqz(self.npy_xform(depth_img), 2)
+        sample['K'] = sample_i['K']
+        sample['R'] = sample_i['R']
+        sample['T'] = sample_i['T']
+        sample['d'] = sample_i['d']
+        sample['d_int'] = sample_i['d_int']
 
         return sample
     

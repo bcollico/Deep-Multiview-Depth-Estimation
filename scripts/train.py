@@ -62,8 +62,9 @@ def train(epochs:int,
         batch_initial_acc = np.zeros(num_trainloader)
         batch_refined_acc = np.zeros(num_trainloader)
 
-        for batch_idx, batch in enumerate(train_data_loader):
-            print_gpu_memory('before index : ')
+        batch_idx = -1
+        for batch in train_data_loader:
+            batch_idx += 1
             if batch_idx < batch_start_idx:
                 continue
             else: 
@@ -72,9 +73,9 @@ def train(epochs:int,
             batch_size, n_views, ch, h, w = batch['input_img'].size()
             _         , _      , _ ,dh,dw = batch['depth_ref'].size()
                 
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
-            print_gpu_memory('before unpack : ')
+            # print_gpu_memory('before unpack : ')
         
             nn_input= torch.reshape(batch['input_img'], (batch_size*n_views, ch, h, w)).to(DEVICE) # b*n, ch, h, w
             gt_depth= torch.reshape(batch['depth_ref'], (batch_size, 1, dh, dw)).to(DEVICE)       # b*n, ch, h, w
@@ -84,29 +85,29 @@ def train(epochs:int,
             d_min   = batch['d']
             d_int   = batch['d_int']
 
-            print_gpu_memory('before model : ')
+            # print_gpu_memory('before model : ')
 
             initial_depth_map, refined_depth_map = model(nn_input, K_batch, 
                         R_batch, T_batch, d_min, d_int, batch_size, n_views)
 
-            print_gpu_memory('after model : ')
+            # print_gpu_memory('after model : ')
 
             loss, initial_acc, refined_acc = loss_fcn(gt_depth, 
                                         initial_depth_map, refined_depth_map)
 
-            print_gpu_memory('after loss : ')
+            # print_gpu_memory('after loss : ')
 
             loss.backward()
             optimizer.step()
 
-            print_gpu_memory('after optim : ')
+            # print_gpu_memory('after optim : ')
 
             # store statistics of current item in batch
             batch_loss[batch_idx] = float(loss.detach().mean())
             batch_initial_acc[batch_idx] = float(initial_acc.detach().mean())
             batch_refined_acc[batch_idx] = float(refined_acc.detach().mean())
             
-            print_gpu_memory('after store : ')
+            # print_gpu_memory('after store : ')
 
             if ((batch_idx+1)%10 == 0) or ((batch_idx+1) >= num_trainloader):
                 torch.save({
@@ -119,7 +120,7 @@ def train(epochs:int,
                     'acc_2':epoch_refined_acc,
                     }, join(save_path, id_str+'_'+str(batch_idx)))
             
-            print_gpu_memory('after print : ')
+            # print_gpu_memory('after print : ')
 
             if (batch_idx+1) % 1 == 0:
                 print(
@@ -137,7 +138,7 @@ def train(epochs:int,
                             )
                     )
 
-            print_gpu_memory('after save : ')
+            print_gpu_memory('end batch :\t ')
             
             # del batch
             # del nn_input; del gt_depth
