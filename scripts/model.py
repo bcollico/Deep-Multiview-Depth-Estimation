@@ -188,15 +188,19 @@ class MVSNet(nn.Module):
         # print_gpu_memory()
 
         # Don't forget to scale the depth values before refining
-        tran_depth_map = torch.subtract(initial_depth_map, d_min.to(DEVICE))
-        norm_depth_map = torch.div(torch.div(tran_depth_map, d_int.to(DEVICE)), D_NUM)
+        d_trans = d_min.to(DEVICE)
+        d_scale = d_int.to(DEVICE).mul(D_NUM)
+        tran_depth_map = torch.subtract(initial_depth_map, d_trans)
+        norm_depth_map = torch.div(tran_depth_map, d_scale)
 
         _, _, h, w = norm_depth_map.size()
 
         # reshape input images and concatenate with depth map
         refine_input = torch.cat((norm_depth_map, f.interpolate(nn_input[ref_views], (h, w),mode='bilinear')), dim=1)
 
-        refined_depth_map = self.depthmap_refine(refine_input) + norm_depth_map
+        norm_refined_depth_map = self.depthmap_refine(refine_input) + norm_depth_map
+
+        refined_depth_map = norm_refined_depth_map.mul(d_scale).add(d_trans)
 
         # print("Refined Depth Map Computed with Shape ", refined_depth_map.size())
         # print_gpu_memory()
