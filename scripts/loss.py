@@ -8,8 +8,6 @@ def loss_fcn(gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor):
     mask = torch.eq(gt, torch.tensor(0.0).to(DEVICE)).float()
     p_valid = mask.sum((1,2,3))
 
-#     print(p_valid, mask.size())
-
     # absolute difference between ground truth and estimated depth maps
 #     masked_gt    = torch.multiply(torch.abs(gt), mask)
     initial_diff = torch.abs(torch.subtract(gt, initial))
@@ -17,9 +15,6 @@ def loss_fcn(gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor):
 
     loss_0 = torch.multiply(mask, initial_diff).sum((1,2,3)).div(p_valid)
     loss_1 = torch.multiply(mask, refined_diff).sum((1,2,3)).div(p_valid)
-
-    print(torch.multiply(mask, refined_diff))
-    print(p_valid, gt.min(), gt.max())
 
     # compute mean absolute error for both depth maps
     loss = (loss_0 + loss_1).sum()
