@@ -62,9 +62,8 @@ def train(epochs:int,
         batch_initial_acc = np.zeros(num_trainloader)
         batch_refined_acc = np.zeros(num_trainloader)
 
-        batch_idx = -1
-        for batch in train_data_loader:
-            batch_idx += 1
+        for batch_idx, batch in enumerate(train_data_loader):
+            print_gpu_memory()
             if batch_idx < batch_start_idx:
                 continue
             else: 
@@ -162,7 +161,7 @@ def train(epochs:int,
 
 def init_training_model(epochs=10, lr=0.001):
     model = MVSNet()
-    optimizer = torch.optim.Adam(model.parameters, lr=lr)
+    optimizer = torch.optim.SGD(model.parameters, lr=lr)
     start_epoch = 0
 
     return model, optimizer, start_epoch

@@ -192,20 +192,16 @@ def init_test_model(epochs=10):
 
 def load_from_ckpt(ckpt, epochs):
 
-    model, _, _ = init_test_model(epochs)
+    model, _ = init_test_model(epochs)
 
     checkpoint = torch.load(ckpt)
-    ckpt_epoch = epochs - (checkpoint["epoch"]+1)
-    if ckpt_epoch <= 0:
-        raise ValueError("Epochs provided: {:d}, epochs completed in ckpt: {:d}".format(
-    epochs, checkpoint["epoch"]+1))
 
     model.load_state_dict(checkpoint["model_state_dict"])
     loss  = checkpoint['loss']
     acc_1 = checkpoint['acc_1']
     acc_2 = checkpoint['acc_2']
     
-    return model,  checkpoint["epoch"], loss, acc_1, acc_2
+    return model,  0, loss, acc_1, acc_2
         
 
 if __name__ =="__main__":
@@ -213,4 +209,4 @@ if __name__ =="__main__":
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
     model, _ = init_test_model()
-    loss, acc_1, acc_2, = test(epochs=1, model=model, test_data_loader="test_dataloader")
+    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_ep2_end'), test_data_loader="test_dataloader")

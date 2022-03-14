@@ -7,7 +7,7 @@ from costvolume import assemble_cost_volume
 from depthmap import extract_depth_map
 from utils import print_gpu_memory
 
-from config import D_NUM, DEVICE, FEAT_H, FEAT_W
+from config import D_NUM, DEVICE, FEAT_H, FEAT_W, DIM_REDUCE, PAD, OUTPAD
 import warnings
 
 # from torch.autograd import Variable
@@ -29,8 +29,8 @@ class FeatureEncoder(nn.Module):
         # out_3 = int(base_filt * DIM_REDUCE  )
 
         out_1 = base_filt
-        out_2 = int(base_filt * 2)
-        out_3 = int(base_filt * 4)
+        out_2 = int(base_filt * DIM_REDUCE/2)
+        out_3 = int(base_filt * DIM_REDUCE  )
 
         self.model = nn.Sequential(
 
@@ -70,8 +70,8 @@ class CostVolumeReg(nn.Module):
     def __init__(self, in_ch=32, base_filt=8, device=DEVICE):
         super(CostVolumeReg, self).__init__()
 
-        pad = (11, 65, 81) # dim/2 + 1
-        outpad = (1, 1, 1) # 0 for odd, 1 for even  
+        pad = PAD # dim/2 + 1
+        outpad = OUTPAD # 0 for odd, 1 for even  
 
         self.conv_0_0 = ConvLayer3D(in_ch, base_filt*1, kernel=3, stride=1, padding=1, device=device) # input data
         self.conv_1_0 = ConvLayer3D(in_ch, base_filt*2, kernel=3, stride=2, padding=pad, device=device)
@@ -146,7 +146,9 @@ class DepthRefinement(nn.Module):
 
     def forward(self, depth_and_input):
         """Input is 4-channel: depth map + input image"""
-        return self.model(depth_and_input)
+        norm_depth_residual = self.model(depth_and_input)
+        norm_refined_depth = norm_depth_residual + depth_and_input[0]
+        return self.model(norm_refined_depth)
 
 
 class MVSNet(nn.Module):
@@ -196,10 +198,10 @@ class MVSNet(nn.Module):
             refine_input = torch.cat((norm_depth_map, f.interpolate(nn_input[ref_views], (FEAT_H, FEAT_W),mode='bilinear')), dim=1)
 
         # compute the normalized refined depth residual
-        norm_depth_residual = self.depthmap_refine(refine_input)
+        norm_refined_depth = self.depthmap_refine(refine_input)
 
         # add the initial depth map back to the re-scaled residual
-        refined_depth_map = norm_depth_residual.mul(d_scale).add(d_trans).add(initial_depth_map)
+        refined_depth_map = norm_refined_depth.mul(d_scale).add(d_trans)
 
         return initial_depth_map, refined_depth_map
 

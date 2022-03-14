@@ -37,25 +37,25 @@ def homography_warping(K_batch:torch.Tensor,
 
 
     # identity matrix for contructing homography: shape (1, d, 3, 3)
-    I = torch.eye(3).to(DEVICE).unsqueeze(0).unsqueeze(1).expand((-1, d_num, -1, -1))
+    I = torch.eye(3).to(DEVICE).unsqueeze(0).unsqueeze(1).repeat(1, d_num, 1, 1)
 
     # get camera parameters for reference views: shape (batch_size*(n_views-1), d, 3, 3)
-    K_ref   = K_batch[ref_idx,:,:].to(DEVICE).unsqueeze(1).expand((-1, d_num, -1, -1))  # intrinsic
+    K_ref   = K_batch[ref_idx,:,:].to(DEVICE).unsqueeze(1).repeat(1, d_num, 1, 1)  # intrinsic
     R_ref_0 = R_batch[ref_idx,:,:].to(DEVICE)
     T_ref_0 = T_batch[ref_idx,:,:].to(DEVICE)
 
-    R_ref = R_ref_0.unsqueeze(1).expand((-1, d_num, -1, -1))  # rotation
-    T_ref = -torch.matmul(R_ref_0.transpose(-2,-1),T_ref_0).unsqueeze(1).expand((-1, d_num, -1, -1))  # translation
+    R_ref = R_ref_0.unsqueeze(1).repeat(1, d_num, 1, 1)  # rotation
+    T_ref = -torch.matmul(R_ref_0.transpose(-2,-1),T_ref_0).unsqueeze(1).repeat(1, d_num, 1, 1)  # translation
     n_ref = R_ref[:, :, :,2].unsqueeze(2) # principle axis of the reference view (b*(n-1) d, 1, 3)
 
     # get camera parameters for other views: shape (batch_size*(n_views-1), d, 3, 3)
-    K_view   = K_batch[img_idx,:,:].to(DEVICE).unsqueeze(1).expand((-1, d_num, -1, -1)) # intrinsics
+    K_view   = K_batch[img_idx,:,:].to(DEVICE).unsqueeze(1).repeat(1, d_num, 1, 1) # intrinsics
     R_view_0 = R_batch[img_idx,:,:].to(DEVICE)
     T_view_0 = T_batch[img_idx,:,:].to(DEVICE)
 
 
-    R_view = R_view_0.unsqueeze(1).expand((-1, d_num, -1, -1)) # rotation
-    T_view = -torch.matmul(R_view_0.transpose(-2,-1), T_view_0).unsqueeze(1).expand((-1, d_num, -1, -1)) # translation
+    R_view = R_view_0.unsqueeze(1).repeat(1, d_num, 1, 1) # rotation
+    T_view = -torch.matmul(R_view_0.transpose(-2,-1), T_view_0).unsqueeze(1).repeat(1, d_num, 1, 1) # translation
     
     # compute pt. {1} of homography eqn. -- on DEVICE
     RK = torch.matmul(K_view, R_view)
@@ -76,14 +76,18 @@ def homography_warping(K_batch:torch.Tensor,
 
     # compute homography on feature maps
     w_and_h = tuple(feature_maps.size()[-2:])
-    warped_feature_maps = feature_maps.detach().clone().unsqueeze(2).to(DEVICE).expand((-1,-1,d_num,-1,-1))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         # Kornia.warp_perspective triggers a warning in a pytorch function
         # during interpolation
         for d in range(d_num):
-            warped_feature_maps[img_idx, :, d] = \
-                warp_perspective(feature_maps[img_idx], H_i[:,d,:,:], w_and_h)
+            # print(d, feature_maps.size(), warped_feature_maps.size(), H_i.size())
+            current_warped_feature_maps = \
+                warp_perspective(feature_maps[img_idx], H_i[:,d,:,:], w_and_h, align_corners=False)
+            if d == 0:
+                warped_feature_maps = current_warped_feature_maps.unsqueeze(2)
+            else:
+                warped_feature_maps = torch.cat((warped_feature_maps,current_warped_feature_maps.unsqueeze(2)),2)
 
     return warped_feature_maps, d_batch_0, ref_idx_0
 

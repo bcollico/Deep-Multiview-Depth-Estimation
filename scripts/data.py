@@ -216,7 +216,7 @@ class DtuTrainDataset(Dataset):
 
         n_scans = len(DTU.scan_idx)
         n_camms = len(DTU.cam_idx)
-        n_lghts = 7
+        n_lghts = 1
 
         sample_iter = product(np.arange(n_scans),    # scan     indexing
                               np.arange(n_lghts),    # lighting indexing
@@ -465,7 +465,7 @@ if __name__ == '__main__':
     MVS paper."""
 
     # 'test', 'training', 'evaluation', 'validation'
-    cases = ['test']
+    cases = ['training']
 
     random.seed(401)
     from os.path import join
@@ -487,7 +487,7 @@ if __name__ == '__main__':
                     66, 67, 82, 86, 106, 117, 1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
                     34, 48, 49, 62, 75, 77, 110, 114, 118])
             file_name = 'training_dataloader'
-            batch_size = 49
+            batch_size = 6
         elif case == 'evaluation':
             scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
                                  34, 48, 49, 62, 75, 77, 110, 114, 118])
@@ -501,7 +501,7 @@ if __name__ == '__main__':
         elif case == 'test':
             scan_idx = np.array([1,2])
             file_name = 'test_dataloader'
-            batch_size = 6
+            batch_size = 1
 
         dtu_train_dataloader = get_dtu_loader(path, 
                                               cam_idx, 
