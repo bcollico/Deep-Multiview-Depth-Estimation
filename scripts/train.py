@@ -138,7 +138,7 @@ def train(epochs:int,
                             )
                     )
 
-            print_gpu_memory('end batch :\t ')
+            # print_gpu_memory('end batch :\t ')
             
             # del batch
             # del nn_input; del gt_depth
