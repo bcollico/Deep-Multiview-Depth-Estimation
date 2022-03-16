@@ -13,6 +13,8 @@ def validate(valid_data_loader:DataLoader,
 
     num_trainloader = len(valid_data_loader)
 
+    model.eval()
+
     torch.autograd.set_detect_anomaly(True)
     with torch.no_grad():
 

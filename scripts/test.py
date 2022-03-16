@@ -48,6 +48,8 @@ def test(epochs:int,
 
     id_str = "test_"+str(int(time.time()))
 
+    model.eval()
+
     total = num_trainloader
     with tqdm(total=total) as pbar:
         for epoch in range(start_epoch, epochs):
@@ -76,7 +78,7 @@ def test(epochs:int,
                     d_min   = batch['d']
                     d_int   = batch['d_int']
 
-                    d_min = torch.tensor(0)*d_min # error in dataset, use d_min = 0
+                    # d_min = torch.tensor(0)*d_min # error in dataset, use d_min = 0
                     d_int = d_int.div(d_int) # set this to 1 so that we fully control interval from config
 
                     # print("NN Input sent to ", DEVICE, "with shape: ", nn_input.size())
@@ -116,7 +118,11 @@ def test(epochs:int,
                             )
 
                         if VISUALIZE:
-                            visualize_depth(nn_input, gt_depth, initial_depth_map, refined_depth_map)
+                            for b in range(batch_size):
+                                visualize_depth(batch['input_img'][b,0].unsqueeze(0),
+                                                gt_depth[b].unsqueeze(0),
+                                                initial_depth_map[b].unsqueeze(0),
+                                                refined_depth_map[b].unsqueeze(0))
                         pbar.update(1)
 
             # save stats for each epoch
@@ -216,5 +222,6 @@ if __name__ =="__main__":
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
     model, _ = init_test_model()
-    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_1647428081_1_1166'), test_data_loader="test_dataloader")
+    loss, acc_1, acc_2, = test(epochs=1, model=None, 
+    checkpoint=join('.','checkpoints','train_1647468534_19_9'), test_data_loader="test_dataloader")
 
