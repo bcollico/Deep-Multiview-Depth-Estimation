@@ -16,7 +16,7 @@ def extract_depth_map(prob_volume:torch.Tensor, d_batch:torch.Tensor):
 
     # print("Filtered Prob Volume computed with shape:, ", filtered_prob_volume.size())
 
-    depth_map = (d_batch.unsqueeze(1) * filtered_prob_volume).sum(2).squeeze(2)
+    depth_map = (d_batch.unsqueeze(1) * filtered_prob_volume).sum(2).squeeze(2).div(filtered_prob_volume.sum(2))
 
 
     return depth_map

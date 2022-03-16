@@ -7,7 +7,7 @@ from costvolume import assemble_cost_volume
 from depthmap import extract_depth_map
 from utils import print_gpu_memory
 
-from config import D_NUM, DEVICE, FEAT_H, FEAT_W, DIM_REDUCE, PAD, OUTPAD
+from config import D_NUM, D_SCALE, DEVICE, FEAT_H, FEAT_W, DIM_REDUCE, PAD, OUTPAD
 import warnings
 
 # from torch.autograd import Variable
@@ -188,7 +188,7 @@ class MVSNet(nn.Module):
 
         # scale the initial depth map
         d_trans = d_min.to(DEVICE)
-        d_scale = d_int.to(DEVICE).mul(D_NUM)
+        d_scale = d_int.to(DEVICE).mul(D_NUM).mul(D_SCALE)
         tran_depth_map = torch.subtract(initial_depth_map, d_trans)
         norm_depth_map = torch.div(tran_depth_map, d_scale)
 

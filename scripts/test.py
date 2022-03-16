@@ -76,8 +76,8 @@ def test(epochs:int,
                     d_min   = batch['d']
                     d_int   = batch['d_int']
 
-                    min_d = d_min[0,0,0,0].numpy()
-                    max_d = min_d + D_NUM*d_int[0,0,0,0].numpy()*D_SCALE
+                    d_min = torch.tensor(0)*d_min # error in dataset, use d_min = 0
+                    d_int = d_int.div(d_int) # set this to 1 so that we fully control interval from config
 
                     # print("NN Input sent to ", DEVICE, "with shape: ", nn_input.size())
                     # print_gpu_memory()
@@ -116,7 +116,7 @@ def test(epochs:int,
                             )
 
                         if VISUALIZE:
-                            visualize_depth(nn_input, gt_depth, initial_depth_map, refined_depth_map, min_d, max_d)
+                            visualize_depth(nn_input, gt_depth, initial_depth_map, refined_depth_map)
                         pbar.update(1)
 
             # save stats for each epoch
@@ -135,17 +135,20 @@ def test(epochs:int,
 
     return epoch_loss, epoch_initial_acc, epoch_refined_acc
 
-def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor, min_d:float, max_d:float):
+def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor):
 
     import matplotlib.pyplot as plt
-    def plot_depth(img:torch.Tensor, fig, idx, label, min_d=0, max_d=max_d):
+    def plot_depth(img:torch.Tensor, fig, idx, label, maxmax):
         img = img.cpu()
-        img = img-img.min()
-        img = img/img.max()
+        # img = img-img.min()
+        # img = img/img.max()
+        img = img/maxmax
         fig.add_subplot(2, 2, idx+1)
         plt.title(label)
         plt.axis('off')
-        plt.imshow( (img[0] * 255).type(torch.ByteTensor),  cmap='viridis', vmin=min_d, vmax=max_d)
+        depth = plt.imshow( (img[0] * 255).type(torch.ByteTensor),  cmap='cool', vmin=0, vmax=255)
+        cbar = plt.colorbar(depth)
+        cbar.set_label('Depth Value')
         return fig
 
     # ignore invalid points in the depth map
@@ -167,18 +170,20 @@ def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, ref
         plt.axis('off')
         plt.imshow( img.permute(1, 2, 0).cpu() )
 
+        maxmax = torch.max(torch.max((gt)[i].max(), initial[i].max()), refined[i].max()).cpu()
+
         img = (gt)[i]
-        fig = plot_depth(img, fig, 1, "Truth")
+        fig = plot_depth(img, fig, 1, "Truth", maxmax)
 
         # print(img.min(), img.max())
 
         img = initial[i]
-        fig = plot_depth(img, fig, 2, "Initial")
+        fig = plot_depth(img, fig, 2, "Initial", maxmax)
 
         # print(torch.abs(initial[i]-gt[i]).min(), torch.abs(initial[i]-gt[i]).max())
 
         img = refined[i]
-        fig = plot_depth(img, fig, 3, "Refined")
+        fig = plot_depth(img, fig, 3, "Refined", maxmax)
 
         # print(torch.abs(refined[i]-gt[i]).min(), torch.abs(refined[i]-gt[i]).max())
 
@@ -211,5 +216,5 @@ if __name__ =="__main__":
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
     model, _ = init_test_model()
-    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_ep3_end'), test_data_loader="evaluation_dataloader")
+    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_1647428081_1_1166'), test_data_loader="test_dataloader")
 
