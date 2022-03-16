@@ -11,7 +11,7 @@ from model import *
 from tqdm import tqdm
 from config import DEVICE
 
-VISUALIZE = True
+VISUALIZE = False
 
 
 def test(epochs:int, 
@@ -211,4 +211,5 @@ if __name__ =="__main__":
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
     model, _ = init_test_model()
-    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_1647270312_99'), test_data_loader="evaluation_dataloader")
+    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_ep3_end'), test_data_loader="evaluation_dataloader")
+

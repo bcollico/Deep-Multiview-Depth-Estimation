@@ -1,3 +1,4 @@
+import pdb
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import Sampler
 from torchvision import transforms
@@ -313,7 +314,7 @@ class DtuTrainDataset(Dataset):
         depth_img    = load_depth(sample_i['depth_filename'])
         _, depth_img = threshold(depth_img, 0   , 100000, THRESH_TOZERO)
         _, depth_img = threshold(depth_img, 1000, 100000, THRESH_TOZERO_INV)
-         
+
         sample['input_img'] = input_img
         sample['depth_ref'] = unsqz(self.npy_xform(depth_img), 2)
         sample['K'] = sample_i['K']
@@ -487,7 +488,7 @@ if __name__ == '__main__':
                     66, 67, 82, 86, 106, 117, 1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
                     34, 48, 49, 62, 75, 77, 110, 114, 118])
             file_name = 'training_dataloader'
-            batch_size = 6
+            batch_size = 5
         elif case == 'evaluation':
             scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
                                  34, 48, 49, 62, 75, 77, 110, 114, 118])
