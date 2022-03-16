@@ -7,12 +7,10 @@ from loss import loss_fcn
 from utils import print_gpu_memory
 from model import MVSNet
 from config import DEVICE
-import gc
-from sys import getsizeof
 
 def train(epochs:int, 
           train_data_loader:DataLoader,
-          lr:float=0.001,
+          lr:float=0.00001,
           save_path:str=join('.','checkpoints'),
           checkpoint:str=None,
           model:torch.nn.Module=None,
@@ -51,6 +49,7 @@ def train(epochs:int,
     id_str = 'train_'+str(int(time.time()))
 
     model.train()
+    torch.autograd.set_detect_anomaly(True)
     for epoch in range(start_epoch, epochs):
         # with torch.no_grad():
         print("----- TRAINING EPOCH #{:d} -----".format(epoch+1+start_epoch))
@@ -63,7 +62,6 @@ def train(epochs:int,
         batch_refined_acc = np.zeros(num_trainloader)
 
         for batch_idx, batch in enumerate(train_data_loader):
-            print_gpu_memory()
             if batch_idx < batch_start_idx:
                 continue
             else: 
@@ -73,8 +71,6 @@ def train(epochs:int,
             _         , _      , _ ,dh,dw = batch['depth_ref'].size()
                 
             optimizer.zero_grad(set_to_none=True)
-
-            # print_gpu_memory('before unpack : ')
         
             nn_input= torch.reshape(batch['input_img'], (batch_size*n_views, ch, h, w)).to(DEVICE) # b*n, ch, h, w
             gt_depth= torch.reshape(batch['depth_ref'], (batch_size, 1, dh, dw)).to(DEVICE)       # b*n, ch, h, w
@@ -84,31 +80,21 @@ def train(epochs:int,
             d_min   = batch['d']
             d_int   = batch['d_int']
 
-            # print_gpu_memory('before model : ')
-
             initial_depth_map, refined_depth_map = model(nn_input, K_batch, 
                         R_batch, T_batch, d_min, d_int, batch_size, n_views)
-
-            # print_gpu_memory('after model : ')
 
             loss, initial_acc, refined_acc = loss_fcn(gt_depth, 
                                         initial_depth_map, refined_depth_map)
 
-            # print_gpu_memory('after loss : ')
-
             loss.backward()
             optimizer.step()
-
-            # print_gpu_memory('after optim : ')
 
             # store statistics of current item in batch
             batch_loss[batch_idx] = float(loss.detach().mean())
             batch_initial_acc[batch_idx] = float(initial_acc.detach().mean())
             batch_refined_acc[batch_idx] = float(refined_acc.detach().mean())
             
-            # print_gpu_memory('after store : ')
-
-            if ((batch_idx+1)%10 == 0) or ((batch_idx+1) >= num_trainloader):
+            if ((batch_idx+1)%100 == 0) or ((batch_idx+1) >= num_trainloader):
                 torch.save({
                     'epoch':epoch,
                     'batch_idx':batch_idx,
@@ -119,8 +105,6 @@ def train(epochs:int,
                     'acc_2':epoch_refined_acc,
                     }, join(save_path, id_str+'_'+str(batch_idx)))
             
-            # print_gpu_memory('after print : ')
-
             if (batch_idx+1) % 1 == 0:
                 print(
                     "Epoch: #{:d} Batch: {:d}/{:d}\tLoss(curr/avg) {:.4f}/{:.4f}\t"
@@ -137,21 +121,6 @@ def train(epochs:int,
                             )
                     )
 
-            # print_gpu_memory('end batch :\t ')
-            
-            # del batch
-            # del nn_input; del gt_depth
-            # del K_batch; del R_batch; del T_batch
-            # del d_int;del d_min
-            # del initial_acc; del refined_acc
-            # del initial_depth_map; del refined_depth_map
-            # del batch_size; del n_views; del ch; del h; del w; del dh; del dw
-
-            # gc.collect()
-            # torch.cuda.empty_cache()
-
-            # print_gpu_memory('after garbage : ')
-
         # compute average stats for epoch
         epoch_loss[epoch]        = np.mean(batch_loss)
         epoch_initial_acc[epoch] = np.mean(batch_initial_acc)
@@ -161,7 +130,7 @@ def train(epochs:int,
 
 def init_training_model(epochs=10, lr=0.001):
     model = MVSNet()
-    optimizer = torch.optim.SGD(model.parameters, lr=lr)
+    optimizer = torch.optim.Adam(model.parameters, lr=lr)
     start_epoch = 0
 
     return model, optimizer, start_epoch
@@ -190,4 +159,4 @@ if __name__ =="__main__":
     # really strange behavior, need to include the dataset class
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
-    model, loss, acc_1, acc_2, = train(epochs=10, checkpoint=None, train_data_loader="test_dataloader")
+    model, loss, acc_1, acc_2, = train(epochs=10, checkpoint=None, train_data_loader="training_dataloader")
