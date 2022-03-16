@@ -9,9 +9,9 @@ from loss import loss_fcn
 from utils import *
 from model import *
 from tqdm import tqdm
-from config import DEVICE
+from config import DEVICE, D_NUM, D_SCALE
 
-VISUALIZE = False
+VISUALIZE = True
 
 
 def test(epochs:int, 
@@ -48,7 +48,7 @@ def test(epochs:int,
 
     id_str = "test_"+str(int(time.time()))
 
-    total = epochs
+    total = num_trainloader
     with tqdm(total=total) as pbar:
         for epoch in range(start_epoch, epochs):
             # with torch.no_grad():
@@ -67,8 +67,6 @@ def test(epochs:int,
 
                     batch_size, n_views, ch, h, w = batch['input_img'].size()
                     _         , _      , _ ,dh,dw = batch['depth_ref'].size()
-
-                    print(batch_size, n_views)
                 
                     nn_input= torch.reshape(batch['input_img'], (batch_size*n_views, ch, h, w)).to(DEVICE) # b*n, ch, h, w
                     gt_depth= torch.reshape(batch['depth_ref'], (batch_size, 1, dh, dw)).to(DEVICE)       # b*n, ch, h, w
@@ -77,6 +75,9 @@ def test(epochs:int,
                     T_batch = torch.reshape(batch['T'], (batch_size*n_views, 3, 1))
                     d_min   = batch['d']
                     d_int   = batch['d_int']
+
+                    min_d = d_min[0,0,0,0].numpy()
+                    max_d = min_d + D_NUM*d_int[0,0,0,0].numpy()*D_SCALE
 
                     # print("NN Input sent to ", DEVICE, "with shape: ", nn_input.size())
                     # print_gpu_memory()
@@ -115,7 +116,8 @@ def test(epochs:int,
                             )
 
                         if VISUALIZE:
-                            visualize_depth(nn_input, gt_depth, initial_depth_map, refined_depth_map)
+                            visualize_depth(nn_input, gt_depth, initial_depth_map, refined_depth_map, min_d, max_d)
+                        pbar.update(1)
 
             # save stats for each epoch
             epoch_loss[epoch]        = batch_loss
@@ -130,29 +132,27 @@ def test(epochs:int,
             #                 'acc_1': epoch_initial_acc,
             #                 'acc_2': epoch_refined_acc,
             #                 }, join(save_path, id_str+"_"+str(epoch)))
-        pbar.update(1)
 
     return epoch_loss, epoch_initial_acc, epoch_refined_acc
 
-def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor):
+def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, refined:torch.Tensor, min_d:float, max_d:float):
 
     import matplotlib.pyplot as plt
-    from torchvision import transforms
-    def plot_depth(img:torch.Tensor, fig, idx, label):
+    def plot_depth(img:torch.Tensor, fig, idx, label, min_d=0, max_d=max_d):
         img = img.cpu()
         img = img-img.min()
         img = img/img.max()
         fig.add_subplot(2, 2, idx+1)
         plt.title(label)
         plt.axis('off')
-        plt.imshow( (img[0] * 255).type(torch.ByteTensor),  cmap='plasma')
+        plt.imshow( (img[0] * 255).type(torch.ByteTensor),  cmap='viridis', vmin=min_d, vmax=max_d)
         return fig
 
     # ignore invalid points in the depth map
     for i in range(gt.size()[0]):
 
         mask = torch.eq(gt, torch.tensor(0.0).to(DEVICE)).float()
-        p_valid = mask.sum()
+        p_valid = torch.neg(mask - torch.tensor(1.0)).sum((1,2,3))
 
         fig = plt.figure()
         plt.axis('off')

@@ -48,6 +48,8 @@ def train(epochs:int,
 
     id_str = 'train_'+str(int(time.time()))
 
+    check_batch_idx = True
+
     model.train()
     torch.autograd.set_detect_anomaly(True)
     for epoch in range(start_epoch, epochs):
@@ -62,10 +64,11 @@ def train(epochs:int,
         batch_refined_acc = np.zeros(num_trainloader)
 
         for batch_idx, batch in enumerate(train_data_loader):
-            if batch_idx < batch_start_idx:
+            if check_batch_idx and batch_idx < batch_start_idx:
                 continue
             else: 
                 batch_start_idx = -1
+                check_batch_idx = False
 
             batch_size, n_views, ch, h, w = batch['input_img'].size()
             _         , _      , _ ,dh,dw = batch['depth_ref'].size()
@@ -103,7 +106,7 @@ def train(epochs:int,
                     'loss':epoch_loss,
                     'acc_1':epoch_initial_acc,
                     'acc_2':epoch_refined_acc,
-                    }, join(save_path, id_str+'_'+str(batch_idx)))
+                    }, join(save_path, id_str+'_'+str(epoch)+'_'+str(batch_idx)))
             
             if (batch_idx+1) % 1 == 0:
                 print(
@@ -122,9 +125,9 @@ def train(epochs:int,
                     )
 
         # compute average stats for epoch
-        epoch_loss[epoch]        = np.mean(batch_loss)
-        epoch_initial_acc[epoch] = np.mean(batch_initial_acc)
-        epoch_refined_acc[epoch] = np.mean(batch_refined_acc)
+        epoch_loss[epoch]        = batch_loss
+        epoch_initial_acc[epoch] = batch_initial_acc
+        epoch_refined_acc[epoch] = batch_refined_acc
 
     return model, epoch_loss, epoch_initial_acc, epoch_refined_acc
 
