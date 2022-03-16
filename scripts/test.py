@@ -67,6 +67,8 @@ def test(epochs:int,
 
                     batch_size, n_views, ch, h, w = batch['input_img'].size()
                     _         , _      , _ ,dh,dw = batch['depth_ref'].size()
+
+                    print(batch_size, n_views)
                 
                     nn_input= torch.reshape(batch['input_img'], (batch_size*n_views, ch, h, w)).to(DEVICE) # b*n, ch, h, w
                     gt_depth= torch.reshape(batch['depth_ref'], (batch_size, 1, dh, dw)).to(DEVICE)       # b*n, ch, h, w
@@ -113,21 +115,21 @@ def test(epochs:int,
                             )
 
                         if VISUALIZE:
-                            visualize_depth(nn_input[0], gt_depth, initial_depth_map, refined_depth_map)
+                            visualize_depth(nn_input, gt_depth, initial_depth_map, refined_depth_map)
 
             # save stats for each epoch
             epoch_loss[epoch]        = batch_loss
             epoch_initial_acc[epoch] = batch_initial_acc
             epoch_refined_acc[epoch] = batch_refined_acc
 
-            if (epoch) % 1 == 0:
-                torch.save({
-                            'epoch': epoch,
-                            'model_state_dict': model.state_dict(),
-                            'loss': epoch_loss,
-                            'acc_1': epoch_initial_acc,
-                            'acc_2': epoch_refined_acc,
-                            }, join(save_path, id_str+"_"+str(epoch)))
+            # if (epoch) % 1 == 0:
+            #     torch.save({
+            #                 'epoch': epoch,
+            #                 'model_state_dict': model.state_dict(),
+            #                 'loss': epoch_loss,
+            #                 'acc_1': epoch_initial_acc,
+            #                 'acc_2': epoch_refined_acc,
+            #                 }, join(save_path, id_str+"_"+str(epoch)))
         pbar.update(1)
 
     return epoch_loss, epoch_initial_acc, epoch_refined_acc
@@ -157,28 +159,28 @@ def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, ref
         plt.suptitle("Depth Comparison, {:d} Valid Points".format(int(p_valid)))
         plt.subplots_adjust(hspace=0.1)
 
-        # rgb = rgb[0]
-        rgb = rgb-rgb.min()
-        rgb = rgb/rgb.max()
+        img = rgb[i*3]
+        img = img-img.min()
+        img = img/img.max()
         fig.add_subplot(2, 2, 1)
         plt.title("Original")
         plt.axis('off')
-        plt.imshow( rgb.permute(1, 2, 0).cpu() )
+        plt.imshow( img.permute(1, 2, 0).cpu() )
 
         img = (gt)[i]
         fig = plot_depth(img, fig, 1, "Truth")
 
-        print(img.min(), img.max())
+        # print(img.min(), img.max())
 
         img = initial[i]
         fig = plot_depth(img, fig, 2, "Initial")
 
-        print(torch.abs(initial[i]-gt[i]).min(), torch.abs(initial[i]-gt[i]).max())
+        # print(torch.abs(initial[i]-gt[i]).min(), torch.abs(initial[i]-gt[i]).max())
 
         img = refined[i]
         fig = plot_depth(img, fig, 3, "Refined")
 
-        print(torch.abs(refined[i]-gt[i]).min(), torch.abs(refined[i]-gt[i]).max())
+        # print(torch.abs(refined[i]-gt[i]).min(), torch.abs(refined[i]-gt[i]).max())
 
         plt.show()
 
@@ -209,4 +211,4 @@ if __name__ =="__main__":
     # here in order to load the saved dataset properly
     from data import DtuTrainDataset
     model, _ = init_test_model()
-    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_ep2_end'), test_data_loader="test_dataloader")
+    loss, acc_1, acc_2, = test(epochs=1, model=None, checkpoint=join('.','checkpoints','train_1647270312_99'), test_data_loader="evaluation_dataloader")

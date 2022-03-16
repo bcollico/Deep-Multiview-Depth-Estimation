@@ -363,7 +363,7 @@ def get_dtu_loader(folder_path, cam_idx, scan_idx, event,
     if event=='training' or event=='validation' or event=='test':
         shuffle=True
     else:
-        shuffle=False
+        shuffle=True
     print("Constructing Training Dataloader...")
     DTU             = DtuReader(folder_path, cam_idx, scan_idx, event)
     dtu_dataset     = DtuTrainDataset(DTU)
@@ -465,7 +465,7 @@ if __name__ == '__main__':
     MVS paper."""
 
     # 'test', 'training', 'evaluation', 'validation'
-    cases = ['training']
+    cases = ['evaluation']
 
     random.seed(401)
     from os.path import join
@@ -492,7 +492,7 @@ if __name__ == '__main__':
             scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
                                  34, 48, 49, 62, 75, 77, 110, 114, 118])
             file_name = 'evaluation_dataloader'
-            batch_size = 49
+            batch_size = 1
         elif case == 'validation':
             scan_idx= np.array([3, 5, 17, 21, 28, 35, 37, 38, 40, 43, 56, 59,
                                 66, 67, 82, 86, 106, 117])
