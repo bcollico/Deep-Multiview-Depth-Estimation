@@ -10,6 +10,8 @@ from utils import *
 from model import *
 from tqdm import tqdm
 from config import DEVICE, D_NUM, D_SCALE
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 VISUALIZE = True
 
@@ -152,7 +154,7 @@ def visualize_depth(rgb:torch.Tensor, gt:torch.Tensor, initial:torch.Tensor, ref
         fig.add_subplot(2, 2, idx+1)
         plt.title(label)
         plt.axis('off')
-        depth = plt.imshow( (img[0] * 255).type(torch.ByteTensor),  cmap='cool', vmin=0, vmax=255)
+        depth = plt.imshow( (img[0] * 255).type(torch.ByteTensor),  cmap='plasma', vmin=0, vmax=255)
         cbar = plt.colorbar(depth)
         cbar.set_label('Depth Value')
         return fig
