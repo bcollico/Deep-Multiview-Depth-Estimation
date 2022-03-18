@@ -132,14 +132,10 @@ def test(epochs:int,
             epoch_initial_acc[epoch] = batch_initial_acc
             epoch_refined_acc[epoch] = batch_refined_acc
 
-            # if (epoch) % 1 == 0:
-            #     torch.save({
-            #                 'epoch': epoch,
-            #                 'model_state_dict': model.state_dict(),
-            #                 'loss': epoch_loss,
-            #                 'acc_1': epoch_initial_acc,
-            #                 'acc_2': epoch_refined_acc,
-            #                 }, join(save_path, id_str+"_"+str(epoch)))
+            torch.save({'loss': epoch_loss,
+                        'acc_1': epoch_initial_acc,
+                        'acc_2': epoch_refined_acc,
+                        }, join(save_path, 'testresults_'+id_str+"_"+str(epoch)))
 
     return epoch_loss, epoch_initial_acc, epoch_refined_acc
 
@@ -225,5 +221,5 @@ if __name__ =="__main__":
     from data import DtuTrainDataset
     model, _ = init_test_model()
     loss, acc_1, acc_2, = test(epochs=1, model=None, 
-    checkpoint=join('.','checkpoints','train_1647468534_19_9'), test_data_loader="test_dataloader")
+    checkpoint=join('.','checkpoints','train_1647473828_13_1166'), test_data_loader="evaluation_dataloader")
 

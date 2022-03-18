@@ -465,7 +465,7 @@ if __name__ == '__main__':
     MVS paper."""
 
     # 'test', 'training', 'evaluation', 'validation'
-    cases = ['validation']
+    cases = ['evaluation']
 
     random.seed(401)
     from os.path import join
@@ -489,8 +489,9 @@ if __name__ == '__main__':
             file_name = 'training_dataloader'
             batch_size = 5
         elif case == 'evaluation':
-            scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
-                                 34, 48, 49, 62, 75, 77, 110, 114, 118])
+            # scan_idx= np.array([1, 4, 9, 10, 11, 12, 13, 15, 23, 24, 29, 32, 33,
+            #                      34, 48, 49, 62, 75, 77, 110, 114, 118])
+            scan_idx= np.array([1, 4, 9, 10, 11, 12])
             file_name = 'evaluation_dataloader'
             batch_size = 1
         elif case == 'validation':
@@ -502,7 +503,7 @@ if __name__ == '__main__':
         elif case == 'test':
             scan_idx = np.array([1])
             file_name = 'test_dataloader'
-            batch_size = 5
+            batch_size = 1
 
         dtu_train_dataloader = get_dtu_loader(path, 
                                               cam_idx, 
