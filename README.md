@@ -7,7 +7,15 @@ A PyTorch implementation of the MVSNet deep learning pipeline for multi-view ste
 This project aims to reproduce the network and results of the [MVSNet](https://arxiv.org/pdf/1804.02505.pdf). The goal of this project is to train a neural network to output the depth map of a scene given a reference image and several overlapping auxiallary images. The general structure of the problem is shown below:
 
 <p align="center">
-     <img src="./output/network_overview.png" width="600"/>
+     <img src="./output/network_overview.png" width="400"/>
+</p>
+
+## Results
+<p align="center">
+     <img src="./output/map1.JPG" height="300"/> &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp<img src="./output/map2.JPG" height="300"/>
+</p>
+<p align="center">
+     <img src="./output/map3.JPG" height="300"/> &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp<img src="./output/map4.JPG" height="300"/>
 </p>
 
 ## Neural Network Components
@@ -17,7 +25,7 @@ This project aims to reproduce the network and results of the [MVSNet](https://a
 The first component of the depth estimation process is extracting deep features using an 8-layer convolutional neural network. The each input RGB image is reduced to 1/4 of it's original height and width and expanded to 32 channels.
 
 <p align="center">
-     <img src="./output/feature_net.png" width="600"/>
+     <img src="./output/feature_net.png" width="400"/>
 </p>
 
 ### Cost Volume Regularization Network
@@ -25,7 +33,7 @@ The first component of the depth estimation process is extracting deep features 
 The feature maps are warped into the viewing plane of the reference camera at varying depths and aggregated into a single cost volume. This cost volume is regularized using an encoder-decoder style 3D convolutional network and output as a probability volume using a single softmax layer.
 
 <p align="center">
-     <img src="./output/cost_net.png" width="600"/>
+     <img src="./output/cost_net.png" width="400"/>
 </p>
 
 ### Depth Refinement Network
@@ -33,7 +41,7 @@ The feature maps are warped into the viewing plane of the reference camera at va
 The probability volume from the previous step is used to compute the expected depth of each pixel. This initial depth map is refined by convolving it with the reference image to learn a "depth residual". The learned residual is added to the original depth map to produce the refined depth map.
 
 <p align="center">
-     <img src="./output/depth_net.png" width="600"/>
+     <img src="./output/depth_net.png" width="400"/>
 </p>
 
 ## Training
@@ -43,3 +51,7 @@ The network is trained on 5000+ samples from the [DTU MVS dataset](https://roboi
 
 ### Loss
 The loss function captions depth estimation error in both the intial and the refined depth maps. The total loss is computed as the sum of the mean absolute error of each depth map per mini-batch.
+
+<p align="center">
+     <img src="./output/training_stats.JPG" width="400"/>
+</p>
