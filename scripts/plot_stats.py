@@ -1,4 +1,4 @@
-from torch import load
+from torch import load, device
 from os.path import join
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 def plot_stats(ckpt):
 
 
-    checkpoint = load(ckpt)
+    checkpoint = load(ckpt, map_location=device('cpu'))
 
     loss  = checkpoint['loss']
     acc_1 = checkpoint['acc_1']
@@ -39,7 +39,7 @@ def plot_stats(ckpt):
 
     fig.add_subplot(3,1,1)
     plt.title("Training Loss")
-    plt.xlabel("Sample #")
+    plt.xlabel("Batch #")
     plt.ylabel("Loss")
     plt.plot(xvals, plotloss, label='Loss', color='b',alpha=0.5, linewidth=0.5)
     plt.plot(xvals_mean, plotloss_mean, label='Mean Loss', color='r')
@@ -52,7 +52,7 @@ def plot_stats(ckpt):
 
     fig.add_subplot(3,1,2)
     plt.title("Initial Depth Accuracy")
-    plt.xlabel("Sample #")
+    plt.xlabel("Batch #")
     plt.ylabel("Initial Acc")
     plt.plot(xvals, plotacc_1, label='Acc', color='b',alpha=0.5, linewidth=0.5)
     plt.plot(xvals_mean, plotacc_1_mean, label='Mean Acc', color='r')
@@ -65,7 +65,7 @@ def plot_stats(ckpt):
 
     fig.add_subplot(3,1,3)
     plt.title("Refined Depth Accuracy")
-    plt.xlabel("Sample #")
+    plt.xlabel("Batch #")
     plt.ylabel("Refined Acc")
     plt.plot(xvals, plotacc_2, label='Acc', color='b',alpha=0.5, linewidth=0.5)
     plt.plot(xvals_mean, plotacc_2_mean, label='Mean Acc', color='r')
