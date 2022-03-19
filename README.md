@@ -1,7 +1,7 @@
 ## CS231A: Computer Vision (Reconstruction and Recognition) 
-Programmer: Bradley Collicott
-
 A PyTorch implementation of the MVSNet deep learning pipeline for multi-view stereo reconstruction.
+
+Full write-up is available [here](./docs/CS231a_Final_Report.pdf).
 
 ## Final Project: End-to-End Deep Learning for Multi-View Stereo
 This project aims to reproduce the network and results of the [MVSNet](https://arxiv.org/pdf/1804.02505.pdf). The goal of this project is to train a neural network to output the depth map of a scene given a reference image and several overlapping auxiallary images. The general structure of the problem is shown below:
